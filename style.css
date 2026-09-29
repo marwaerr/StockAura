@@ -136,6 +136,8 @@ h1{background:linear-gradient(90deg,#6C4DF6,#FF4F8B);-webkit-background-clip:tex
 .mtile svg{width:26px;height:26px}
 .mtile.c0{background:linear-gradient(135deg,#6C4DF6,#8F6CFF)}.mtile.c1{background:linear-gradient(135deg,#FF4F8B,#FF7AA8)}.mtile.c2{background:linear-gradient(135deg,#FFB020,#FFC85C)}.mtile.c3{background:linear-gradient(135deg,#2EC4B6,#5FE0D2)}.mtile.c4{background:linear-gradient(135deg,#3DBE6E,#6BDB93)}.mtile.c5{background:linear-gradient(135deg,#FF7A59,#FF9C82)}
 .l4{grid-template-columns:1.2fr 1fr 1fr 90px 90px 36px}
+.line2{grid-template-columns:2fr 90px 36px}
+.line3{grid-template-columns:2fr 90px 90px 36px}
 .err{color:var(--bad);font-weight:700;margin:0 0 12px}
 .sgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px}
 .scard{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:6px;align-items:center;text-align:center}

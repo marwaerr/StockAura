@@ -3,26 +3,70 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Notre boutique — StockAura</title>
-<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;800&display=swap" rel="stylesheet">
+<title>Notre boutique</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 <style>
-body.pub{background:var(--page) fixed}
-body.pub .app{display:block;border:0;border-radius:0;max-width:1100px;margin:0 auto;min-height:100vh}
-body.pub main{max-width:none;padding:28px clamp(16px,4vw,40px)}
-.cartdrawer{position:fixed;right:0;top:0;bottom:0;width:min(380px,92vw);background:var(--card);box-shadow:-8px 0 24px rgba(0,0,0,.15);transform:translateX(105%);transition:transform .25s;z-index:15;display:flex;flex-direction:column;padding:20px;overflow-y:auto}
-.cartdrawer.open{transform:translateX(0)}
-.fab{position:fixed;right:20px;bottom:calc(20px + env(safe-area-inset-bottom,0px));z-index:14;border-radius:99px;padding:14px 20px;box-shadow:0 6px 18px rgba(0,0,0,.2)}
-.citem{display:flex;justify-content:space-between;align-items:center;gap:8px;border-bottom:1px solid var(--line);padding:10px 0}
-.overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:13;opacity:0;pointer-events:none;transition:opacity .2s}
-.overlay.open{opacity:1;pointer-events:auto}
+:root{--pub-dark:#2B1F33;--pub-dark2:#3D2C4A;--pub-acc:#FF6F61;--pub-bg:#FBF7F4}
+body.pub{background:var(--pub-bg);font-family:'Nunito',sans-serif}
+:root[data-theme="dark"] body.pub{background:#171018}
+body.pub .app{display:block;border:0;border-radius:0;max-width:none;margin:0;min-height:100vh;background:transparent}
+body.pub main{max-width:1200px;margin:0 auto;padding:0 clamp(14px,4vw,40px) 60px}
+.pub-ribbon{background:var(--pub-dark);color:#fff;text-align:center;font-size:13px;font-weight:600;padding:7px 10px;overflow:hidden;white-space:nowrap}
+.pub-ribbon span{display:inline-block;padding:0 24px}
+.pub-header{position:sticky;top:0;z-index:10;background:var(--pub-dark);color:#fff;padding:14px clamp(14px,4vw,40px);display:flex;align-items:center;gap:16px}
+.pub-logo{font-weight:800;font-size:22px;color:#fff;white-space:nowrap;flex:none}
+.pub-logo b{color:var(--pub-acc)}
+.pub-search{flex:1;max-width:520px}
+.pub-search input{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;min-height:40px;border-radius:99px;padding:0 16px}
+.pub-search input::placeholder{color:rgba(255,255,255,.6)}
+.pub-icons{display:flex;align-items:center;gap:14px;flex:none}
+.pub-icons button{all:unset;cursor:pointer;color:#fff;position:relative;display:flex;align-items:center}
+.pub-icons .n{position:absolute;top:-8px;right:-10px;background:var(--pub-acc);color:#fff;font-size:11px;font-weight:800;border-radius:99px;min-width:18px;height:18px;display:flex;align-items:center;justify-content:center;padding:0 4px}
+.pub-hero{padding:34px 0 8px}
+.pub-hero h1{font-size:clamp(24px,4vw,34px);margin:0 0 6px;color:var(--pub-dark)}
+[data-theme="dark"] .pub-hero h1{color:#fff}
+.pub-hero p{color:var(--mute);margin:0 0 22px}
+.catstrip{display:flex;gap:18px;overflow-x:auto;padding:4px 2px 20px;-webkit-overflow-scrolling:touch}
+.catchip{all:unset;cursor:pointer;flex:none;display:flex;flex-direction:column;align-items:center;gap:8px;width:84px;text-align:center}
+.catchip .ci{width:64px;height:64px;border-radius:50%;background:var(--card);border:2px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:26px;transition:border-color .15s}
+.catchip.on .ci{border-color:var(--pub-acc);background:#FFF0EE}
+[data-theme="dark"] .catchip.on .ci{background:#3a2420}
+.catchip span{font-size:12.5px;font-weight:700;color:var(--ink)}
+.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:18px;margin-top:6px}
+.pcard{background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:hidden;display:flex;flex-direction:column;transition:box-shadow .15s}
+.pcard:hover{box-shadow:0 10px 24px rgba(43,31,51,.1)}
+.pcard .ph{aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;background:var(--bg);font-size:42px;overflow:hidden}
+.pcard .ph img{width:100%;height:100%;object-fit:cover}
+.pcard .pbody{padding:14px;display:flex;flex-direction:column;gap:4px;flex:1}
+.pcard .ptag{font-size:11px;font-weight:800;letter-spacing:.03em;color:var(--pub-acc);text-transform:uppercase}
+.pcard .pname{font-weight:700;font-size:14.5px;line-height:1.3;min-height:2.6em}
+.pcard .prow{margin-top:auto;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.pcard .pprice{font-weight:800;font-size:16px;color:var(--pub-dark)}
+[data-theme="dark"] .pcard .pprice{color:#fff}
+.pcard .stbadge{font-size:11.5px;font-weight:700}
+.pcard .padd{margin-top:10px}
+.stepper{display:flex;align-items:center;justify-content:space-between;border:1.5px solid var(--pub-acc);border-radius:10px;overflow:hidden}
+.stepper button{all:unset;cursor:pointer;flex:1;text-align:center;padding:7px 0;font-weight:800;color:var(--pub-acc)}
+.stepper b{flex:1;text-align:center;font-size:14px}
+.addbtn{width:100%;background:var(--pub-acc);color:#fff;border:0;border-radius:10px;padding:9px 0;font-weight:800;cursor:pointer;font-family:inherit}
+.pub-footer{margin-top:50px;padding:26px clamp(14px,4vw,40px);background:var(--pub-dark);color:rgba(255,255,255,.8);font-size:13.5px;text-align:center}
 </style>
 </head>
 <body class="pub">
-<div class="app"><main id="main"><p class="sub">Chargement…</p></main></div>
+<div class="pub-ribbon" id="ribbon"></div>
+<header class="pub-header">
+ <div class="pub-logo">Stock<b>Aura</b></div>
+ <div class="pub-search"><input id="q" placeholder="Rechercher un produit…" oninput="onSearch(this.value)"></div>
+ <div class="pub-icons">
+  <button aria-label="Mode sombre" onclick="toggleTheme()">🌓</button>
+  <button aria-label="Panier" onclick="openCart()">🛒<span class="n" id="fabn" style="display:none">0</span></button>
+ </div>
+</header>
+<div class="app"><main id="main"><p class="sub" style="padding:24px 0">Chargement…</p></main></div>
+<div class="pub-footer">StockAura — boutique en ligne</div>
 <div class="overlay" id="ov" onclick="closeCart()"></div>
 <div class="cartdrawer" id="drawer"></div>
-<button class="btn fab" id="fab" onclick="openCart()" style="display:none">🛒 <span id="fabn">0</span></button>
 <div id="toast" role="status"></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="supabase-config.js"></script>
@@ -32,40 +76,67 @@ const esc=t=>String(t??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const dh=n=>Math.round(n||0).toLocaleString('fr-FR')+' DH';
 const fd=d=>d?d.split('-').reverse().join('/'):'';
 const LOW=5;
-let products=[],promos=[],cart={};
+const CAT_ICONS=['🧸','👶','🍼','🧴','👕','🎁','🛏️','🚼','🧦','📦'];
+const catIcon=name=>{let h=0;for(const c of (name||''))h=(h*31+c.charCodeAt(0))>>>0;return CAT_ICONS[h%CAT_ICONS.length]};
+let products=[],promos=[],cart={},activeCat=null,q='';
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2400)}
+function toggleTheme(){const d=document.documentElement.dataset.theme==='dark';document.documentElement.dataset.theme=d?'':'dark';localStorage.setItem('sa_theme',d?'light':'dark')}
+if(localStorage.getItem('sa_theme')==='dark')document.documentElement.dataset.theme='dark';
 
 async function boot(){
- const [{data:p,error:e1},{data:pr,error:e2}]=await Promise.all([
-  sb.from('products').select('id,name,price,photo_url,low_threshold,variants(id,variant,color,quantity)').eq('visible',true).order('created_at'),
+ const [{data:p,error:e1},{data:pr}]=await Promise.all([
+  sb.from('products').select('id,name,price,photo_url,low_threshold,category,variants(id,variant,color,quantity)').eq('visible',true).order('created_at'),
   sb.from('promotions').select('*').eq('active',true).order('created_at',{ascending:false})
  ]);
  if(e1)toast(e1.message);
  products=p||[];promos=pr||[];
- render();
+ renderRibbon();render();
 }
-
-function stBadge(x){const t=x.p.low_threshold||LOW,st=x.v.quantity<=0?['Rupture','bad']:x.v.quantity<=t?['Stock faible','warn']:['En stock','ok'];return `<span class="stbadge" style="color:var(--${st[1]})">${st[0]}</span>`}
+function renderRibbon(){
+ if(!promos.length){$('#ribbon').style.display='none';return}
+ $('#ribbon').innerHTML=promos.map(m=>`<span>${esc(m.title)}${m.discount_pct?' — jusqu\u2019\u00e0 -'+m.discount_pct+'%':''}</span>`).join('');
+}
+function stBadge(x){const th=x.p.low_threshold||LOW,st=x.v.quantity<=0?['Rupture','bad']:x.v.quantity<=th?['Stock faible','warn']:['En stock','ok'];return `<span class="stbadge" style="color:var(--${st[1]})">${st[0]}</span>`}
 function combos(){return products.flatMap(p=>p.variants.map(v=>({p,v})))}
+function categories(){return[...new Set(products.map(p=>p.category).filter(Boolean))]}
+function onSearch(v){q=v;renderGrid()}
+function pickCat(c){activeCat=activeCat===c?null:c;renderGrid()}
 
 function render(){
- const list=combos();
- $('#main').innerHTML=`<h1>Notre boutique 🛍️</h1><p class="sub">Découvrez nos produits disponibles.</p>
- ${promos.length?promos.map(m=>`<div class="badge-promo">${esc(m.title)}${m.discount_pct?' (jusqu\u2019\u00e0 -'+m.discount_pct+'%)':''}<small>${esc(m.description||'')}${m.ends_at?' \u00b7 Jusqu\u2019au '+fd(m.ends_at):''}</small></div>`).join(''):''}
- ${list.length?`<div class="sgrid">${list.map(x=>`<div class="scard">${x.p.photo_url?`<img class="th" src="${esc(x.p.photo_url)}" alt="${esc(x.p.name)}">`:'<span class="th">📦</span>'}<b>${esc(x.p.name)}</b><span>${esc(x.v.variant)}${x.v.color&&x.v.color!=='Standard'?' · '+esc(x.v.color):''}</span><span class="price">${dh(x.p.price)}</span>${stBadge(x)}${x.v.quantity>0?`<button class="btn" style="margin-top:8px;width:100%" onclick="addToCart('${x.v.id}')">Ajouter</button>`:''}</div>`).join('')}</div>`:'<div class="panel empty">Aucun produit disponible pour le moment.</div>'}`;
- updateFab();
+ const cats=categories();
+ $('#main').innerHTML=`<div class="pub-hero"><h1>Bienvenue dans notre boutique 🛍️</h1><p>Découvrez nos produits disponibles, ajoutez-les au panier et passez votre commande.</p></div>
+ ${cats.length?`<div class="catstrip">${cats.map(c=>`<button class="catchip ${activeCat===c?'on':''}" onclick="pickCat('${esc(c)}')"><span class="ci">${catIcon(c)}</span><span>${esc(c)}</span></button>`).join('')}</div>`:''}
+ <div id="grid"></div>`;
+ renderGrid();
 }
-function addToCart(vid){cart[vid]=(cart[vid]||0)+1;toast('Ajouté au panier');updateFab();if($('#drawer').classList.contains('open'))renderCart()}
-function updateFab(){const n=Object.values(cart).reduce((s,q)=>s+q,0);$('#fab').style.display=n?'block':'none';$('#fabn').textContent=n}
+function renderGrid(){
+ let list=combos();
+ if(activeCat)list=list.filter(x=>x.p.category===activeCat);
+ if(q.trim())list=list.filter(x=>(x.p.name+' '+(x.p.category||'')).toLowerCase().includes(q.trim().toLowerCase()));
+ $('#grid').innerHTML=list.length?`<div class="pgrid">${list.map(cardHTML).join('')}</div>`:'<div class="panel empty">Aucun produit trouvé.</div>';
+}
+function cardHTML(x){
+ const inCart=cart[x.v.id]||0;
+ return `<div class="pcard">
+ <div class="ph">${x.p.photo_url?`<img src="${esc(x.p.photo_url)}" alt="${esc(x.p.name)}">`:'📦'}</div>
+ <div class="pbody">
+ ${x.p.category?`<span class="ptag">${esc(x.p.category)}</span>`:''}
+ <span class="pname">${esc(x.p.name)}${x.v.variant!=='Standard'?' — '+esc(x.v.variant):''}${x.v.color&&x.v.color!=='Standard'?' '+esc(x.v.color):''}</span>
+ <div class="prow"><span class="pprice">${dh(x.p.price)}</span>${stBadge(x)}</div>
+ <div class="padd">${x.v.quantity<=0?'':inCart?`<div class="stepper"><button onclick="changeQty('${x.v.id}',-1)">−</button><b>${inCart}</b><button onclick="changeQty('${x.v.id}',1)">+</button></div>`:`<button class="addbtn" onclick="addToCart('${x.v.id}')">Ajouter au panier</button>`}</div>
+ </div></div>`;
+}
+function addToCart(vid){cart[vid]=(cart[vid]||0)+1;toast('Ajouté au panier');updateFab();renderGrid()}
+function updateFab(){const n=Object.values(cart).reduce((s,q)=>s+q,0);const b=$('#fabn');b.style.display=n?'flex':'none';b.textContent=n}
 function cartLines(){return Object.entries(cart).map(([vid,q])=>{const c=combos().find(x=>x.v.id===vid);return c?{...c,q}:null}).filter(Boolean)}
 function cartTotal(){return cartLines().reduce((s,l)=>s+l.q*l.p.price,0)}
 function openCart(){renderCart();$('#drawer').classList.add('open');$('#ov').classList.add('open')}
 function closeCart(){$('#drawer').classList.remove('open');$('#ov').classList.remove('open')}
-function changeQty(vid,d){cart[vid]=(cart[vid]||0)+d;if(cart[vid]<=0)delete cart[vid];updateFab();renderCart()}
+function changeQty(vid,d){cart[vid]=(cart[vid]||0)+d;if(cart[vid]<=0)delete cart[vid];updateFab();renderGrid();if($('#drawer').classList.contains('open'))renderCart()}
 function renderCart(){
  const lines=cartLines();
  $('#drawer').innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"><h2 style="margin:0">Votre commande</h2><button class="btn ghost" onclick="closeCart()">✕</button></div>
- ${lines.length?lines.map(l=>`<div class="citem"><div><b>${esc(l.p.name)}</b><br><span class="hint">${esc(l.v.variant)} · ${esc(l.v.color)}</span></div><div style="display:flex;align-items:center;gap:6px"><button class="qtybtn" onclick="changeQty('${l.v.id}',-1)">−</button>${l.q}<button class="qtybtn" onclick="changeQty('${l.v.id}',1)">+</button></div></div>`).join(''):'<p class="hint">Votre panier est vide.</p>'}
+ ${lines.length?lines.map(l=>`<div class="citem"><div><b>${esc(l.p.name)}</b><br><span class="hint">${esc(l.v.variant)}${l.v.color&&l.v.color!=='Standard'?' · '+esc(l.v.color):''}</span></div><div style="display:flex;align-items:center;gap:6px"><button class="qtybtn" onclick="changeQty('${l.v.id}',-1)">−</button>${l.q}<button class="qtybtn" onclick="changeQty('${l.v.id}',1)">+</button></div></div>`).join(''):'<p class="hint">Votre panier est vide.</p>'}
  ${lines.length?`<div class="total" style="margin:16px 0">Total : ${dh(cartTotal())}</div>
  <label for="cn">Nom</label><input id="cn" style="margin-bottom:10px">
  <label for="cp">Téléphone</label><input id="cp" style="margin-bottom:10px">
@@ -79,9 +150,8 @@ async function submitOrder(){
  const items=cartLines().map(l=>({variant_id:l.v.id,qty:l.q,price:l.p.price}));
  const{error}=await sb.rpc('record_order',{p_customer_name:name,p_phone:phone,p_address:$('#ca').value.trim()||null,p_note:$('#cnote').value.trim()||null,p_items:items});
  if(error){toast(error.message);return}
- cart={};closeCart();updateFab();toast('Commande envoyée 🎉 Nous vous contactons bientôt.');
+ cart={};closeCart();updateFab();renderGrid();toast('Commande envoyée 🎉 Nous vous contactons bientôt.');
 }
-
 boot();
 </script>
 </body>

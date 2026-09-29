@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>StockAura — Gestion</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+<nav id="nav"></nav>
+<main id="main"><p class="sub">Chargement…</p></main>
+</div>
+<div id="toast" role="status"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="supabase-config.js"></script>
+<script>
+const $=s=>document.querySelector(s);
+const esc=t=>String(t??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const dh=n=>Math.round(n||0).toLocaleString('fr-FR')+' DH';
+const round2=n=>Math.round(n*100)/100;
+const today=()=>new Date().toISOString().slice(0,10);
+const fd=d=>d?d.split('-').reverse().join('/'):'';
+const LOW=5;
+const ROLE={admin:'Administrateur',vendeur:'Vendeur',magasinier:'Magasinier'};
+const PERM={admin:['menu','home','products','entries','sales','returns','cash','history','profit','promotions','users'],vendeur:['menu','home','products','sales','returns','cash','history'],magasinier:['menu','home','products','entries','history']};
+let session=null, me=null, products=[], view='menu';
+let hist={type:'all',q:''}, entryLines=[{}], cart=[], saleMeta={disc:'pct',discVal:'',payment:'cash',given:''}, lastReceipt=null, ret={}, cm={amount:'',note:''}, prodQ='';
+
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2400)}
+function can(v){return me&&PERM[me.role]?.includes(v)}
+const isAdmin=()=>me&&me.role==='admin';
+
+/* ---------- Auth ---------- */
+async function boot(){
+ const {data}=await sb.auth.getSession();
+ session=data.session;
+ if(session)await loadMe();
+ render();
+}
+sb.auth.onAuthStateChange(async(_e,s)=>{session=s;if(s)await loadMe();else me=null;render()});
+async function loadMe(){
+ const{data,error}=await sb.from('profiles').select('*').eq('id',session.user.id).single();
+ if(!error)me=data;
+}
+async function doLogin(){
+ const idf=$('#li').value.trim(),pw=$('#lp').value;
+ if(!idf||!pw){toast('Identifiant et mot de passe requis');return}
+ const email=idf.includes('@')?idf:idf+'@stockaura.app';
+ $('#lbtn').innerHTML='<span class="spin"></span>Connexion…';
+ const{error}=await sb.auth.signInWithPassword({email,password:pw});
+ if(error){toast('Identifiant ou mot de passe incorrect');$('#lbtn').textContent='Se connecter'}
+}
+function loginView(){
+ return `<div class="login-wrap"><h1>StockAura 🎉</h1><p class="sub">Connectez-vous pour accéder à votre boutique.</p>
+ <div class="card"><label for="li">Identifiant</label><input id="li" style="margin-bottom:12px" autocomplete="username">
+ <label for="lp">Mot de passe</label><input id="lp" type="password" style="margin-bottom:16px" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+ <button class="btn" id="lbtn" onclick="doLogin()">Se connecter</button></div>
+ <p class="hint">Pas encore de compte ? Un administrateur peut en créer un depuis Supabase (Authentication → Add user), puis vous attribuer un rôle ici dans Utilisateurs.</p></div>`;
+}
+function logout(){sb.auth.signOut()}
+
+/* ---------- Icônes ---------- */
+const I={home:'<path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',box:'<path d="M21 8l-9-5-9 5v8l9 5 9-5zM3 8l9 5 9-5M12 13v8"/>',in:'<path d="M12 3v12m0 0l-4-4m4 4l4-4M4 21h16"/>',cart:'<path d="M3 4h2l2 11h11l2-8H6"/><circle cx="9" cy="19" r="1.5"/><circle cx="17" cy="19" r="1.5"/>',list:'<path d="M8 6h13M8 12h13M8 18h13M3 6h.5M3 12h.5M3 18h.5"/>',trend:'<path d="M3 17l6-6 4 4 8-8M15 7h6v6"/>',alert:'<path d="M12 3l10 18H2zM12 10v5M12 18v.5"/>',users:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/>',wallet:'<path d="M3 7a2 2 0 0 1 2-2h13a1 1 0 0 1 1 1v3M3 7v11a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-5a1 1 0 0 0-1-1h-4a2 2 0 1 0 0 4h5"/>',megaphone:'<path d="M3 11v2a2 2 0 0 0 2 2h1l3 5V6l-3 5H5a2 2 0 0 0-2 2z"/><path d="M11 6l8-3v18l-8-3"/>'};
+const ic=n=>`<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${I[n]}</svg>`;
+
+/* ---------- Nav ---------- */
+function renderNav(){
+ const items=[['menu','Accueil','home'],['home','Tableau de bord','trend'],['products','Produits','box'],['entries','Entrées','in'],['sales','Ventes','cart'],['returns','Retours','in'],['cash','Caisse','wallet'],['history','Historique','list'],['profit','Profit','trend'],['promotions','Promotions','megaphone'],['users','Utilisateurs','users']].filter(x=>can(x[0]));
+ $('#nav').innerHTML='<div class="logo">StockAura</div><div class="me"><i>'+esc(me.name.slice(0,2).toUpperCase())+'</i><b>'+esc(me.name)+'</b><span>'+ROLE[me.role]+'</span></div>'
+ +items.map(([k,l,i])=>`<button data-c="${k}" class="${view===k?'on':''}" onclick="go('${k}')">${ic(i)}${l}</button>`).join('')
+ +'<div class="spacer"></div><button class="small" onclick="logout()">Se déconnecter</button>';
+}
+async function go(v){view=v;await render()}
+
+/* ---------- Data ---------- */
+async function loadProducts(){
+ const{data,error}=await sb.from('products').select('id,name,price,cost,photo_url,visible,low_threshold,variants(id,variant,color,barcode,quantity)').order('created_at');
+ if(error){toast(error.message);return[]}
+ return data||[];
+}
+const combos=()=>products.flatMap(p=>p.variants.map(v=>({p,v,q:v.quantity})));
+function findByBarcode(code){code=(code||'').trim();if(!code)return null;for(const p of products)for(const v of p.variants)if(v.barcode===code)return{p,v};return null}
+function prodOf(variantId){for(const p of products)for(const v of p.variants)if(v.id===variantId)return{p,v};return null}
+
+/* ---------- Rendu principal ---------- */
+async function render(){
+ if(!session||!me){$('#nav').innerHTML='';$('#main').innerHTML=loginView();return}
+ if(!products.length)products=await loadProducts();
+ if(!can(view))view='menu';
+ renderNav();
+ const views={menu,home,products:productsView,entries,sales,returns,cash,history,profit,promotions,users};
+ $('#main').innerHTML='<p class="sub">Chargement…</p>';
+ $('#main').innerHTML=await views[view]();
+}
+async function refresh(){products=await loadProducts();await render()}
+
+/* ---------- Menu ---------- */
+function menu(){
+ const items=[['home','Tableau de bord','trend'],['products','Produits','box'],['entries','Entrées','in'],['sales','Ventes','cart'],['returns','Retours','in'],['cash','Caisse','wallet'],['profit','Profit','trend'],['history','Historique','list'],['promotions','Promotions','megaphone'],['users','Utilisateurs','users']].filter(x=>can(x[0]));
+ return `<h1>Salut ${esc(me.name)} 👋</h1><p class="sub">Que voulez-vous faire ?</p>
+ <div class="menu">${items.map(([k,l,i],idx)=>`<button class="mtile c${idx%6}" onclick="go('${k}')">${ic(i)}<span>${l}</span></button>`).join('')}</div>`;
+}
+
+/* ---------- Tableau de bord ---------- */
+let hp=null;
+function setPreset(k){const t=new Date(),to=today();let f=to;if(k==='week'){const d=new Date(t);d.setDate(d.getDate()-6);f=d.toISOString().slice(0,10)}if(k==='month')f=to.slice(0,8)+'01';if(k==='year')f=to.slice(0,5)+'01-01';hp={from:f,to,k};go('home')}
+async function home(){
+ if(!products.length)return `<h1>Salut ${esc(me.name)} 👋</h1><p class="sub">Ajoutez un produit, une entrée, puis vendez : le stock se met à jour tout seul.</p><div class="card"><button class="btn" onclick="go('products')">Ajouter mon premier produit</button></div>`;
+ if(!hp){const t=today();hp={from:t.slice(0,8)+'01',to:t,k:'month'}}
+ const{data:moves}=await sb.from('moves').select('*, variants(variant,color,product_id)').gte('date',hp.from).lte('date',hp.to);
+ const m=moves||[],sgn=x=>x.type==='out'?1:-1,trans=m.filter(x=>x.type==='out'||x.type==='return'),salesM=m.filter(x=>x.type==='out');
+ const ca=trans.reduce((s,x)=>s+sgn(x)*x.qty*x.unit_price,0),pf=trans.reduce((s,x)=>s+sgn(x)*x.qty*(x.unit_price-(x.cost||0)),0);
+ const c=combos(),total=c.reduce((s,x)=>s+x.q,0),low=c.filter(x=>x.q<=(x.p.low_threshold||LOW)),out0=c.filter(x=>x.q<=0).length;
+ const card=(t,i,v,l)=>`<div class="oc" data-t="${t}"><span class="ic">${ic(i)}</span><div><b>${v}</b><span>${l}</span></div></div>`;
+ const presets=[['day',"Aujourd'hui"],['week','7 jours'],['month','Ce mois'],['year','Cette année']];
+ const{data:recent}=await sb.from('moves').select('*, variants(variant,color,product_id)').order('date',{ascending:false}).order('created_at',{ascending:false}).limit(6);
+ return `<h1>Salut ${esc(me.name)} 👋</h1><p class="sub">Voici où en est votre boutique.</p>
+ <div class="per"><div class="seg">${presets.map(([k,l])=>`<button class="${hp.k===k?'on':''}" onclick="setPreset('${k}')">${l}</button>`).join('')}</div>
+ <label>Du <input type="date" value="${hp.from}" onchange="hp.from=this.value;hp.k='';go('home')"></label><label>Au <input type="date" value="${hp.to}" onchange="hp.to=this.value;hp.k='';go('home')"></label></div>
+ <div class="ovp"><h2>Aperçu</h2><div class="ov">
+ ${card('b','cart',salesM.length,'Ventes sur la période')}${card('c','trend',dh(ca),"Chiffre d'affaires")}
+ ${isAdmin()?card('e','trend','<span style="color:var(--'+(pf<0?'bad':'ok')+')">'+dh(pf)+'</span>','Profit sur la période'):''}
+ ${card('a','box',products.length,'Produits')}${card('d','box',total,'Articles en stock')}${card('w','alert',out0,'Déclinaisons en rupture')}</div></div>
+ ${low.length?`<h2>À réapprovisionner</h2><div class="panel scroll"><table>${low.slice(0,8).map(x=>`<tr><td>${esc(x.p.name)}</td><td>${esc(x.v.variant)}</td><td>${esc(x.v.color)}</td><td class="n"><span class="pill ${x.q<=0?'zero':''}">${x.q}</span></td></tr>`).join('')}</table></div>`:''}
+ <h2>Derniers mouvements</h2>${moveTable(recent||[])}`;
+}
+const MLBL={in:'Entrée',out:'Vente',return:'Retour'};
+function moveTable(a){
+ if(!a.length)return '<div class="panel empty">Aucun mouvement pour le moment.</div>';
+ return `<div class="panel scroll"><table><tr><th>Date</th><th>Type</th><th>Produit</th><th class="n">Qté</th></tr>${a.map(x=>{const p=prodOf(x.variants?.product_id)||prodOf(x.variant_id);return `<tr><td>${fd(x.date)}</td><td>${MLBL[x.type]||x.type}</td><td>${esc(p?.p?.name||'(supprimé)')} · ${esc(x.variants?.variant||'')} · ${esc(x.variants?.color||'')}</td><td class="n ${x.type==='out'?'out':'in'}">${x.type==='out'?'-':'+'}${x.qty}</td></tr>`}).join('')}</table></div>`;
+}
+
+/* ---------- Produits ---------- */
+const th=p=>p.photo_url?`<img class="th" src="${esc(p.photo_url)}" alt="${esc(p.name)}">`:'<span class="th">📦</span>';
+const parseList=s=>{const a=(s||'').split(',').map(x=>x.trim()).filter(Boolean);return a.length?a:['Standard']};
+function cbPreview(){
+ const V=parseList($('#pv').value),C=parseList($('#pc').value);
+ $('#cbx').innerHTML=V.length*C.length>1?'<label>Code-barres de chaque déclinaison (facultatif)</label>'+V.flatMap(v=>C.map(c=>`<div class="scan"><span class="cl">${esc(v)} · ${esc(c)}</span><input class="cbn" data-v="${esc(v)}" data-c="${esc(c)}" placeholder="Scanner ou saisir"></div>`)).join(''):'';
+}
+function productsView(){
+ const q=prodQ.toLowerCase(),ed=me.role!=='vendeur',ad=isAdmin();
+ const c=combos().filter(x=>(x.p.name+x.v.variant+x.v.color+(x.v.barcode||'')).toLowerCase().includes(q));
+ return `<h1>Produits</h1><p class="sub">Toutes vos références, avec le stock actuel.</p>
+ ${ed?`<div class="card"><h2 style="margin-top:0">Ajouter un produit</h2>
+ <div class="grid"><div><label for="pn">Nom du produit</label><input id="pn"></div>
+ <div><label for="pb">Code-barres</label><input id="pb" placeholder="Si une seule déclinaison"></div>
+ <div><label for="pp">Prix de vente (DH)</label><input id="pp" type="number" min="0" step="any"></div>
+ ${ad?`<div><label for="pa">Prix d'achat (DH)</label><input id="pa" type="number" min="0" step="any"></div>`:''}</div>
+ <div class="grid"><div><label for="pv">Variantes</label><input id="pv" placeholder="iPhone 15, iPhone 16" oninput="cbPreview()"></div>
+ <div><label for="pc">Couleurs</label><input id="pc" placeholder="Noir, Rose, Bleu" oninput="cbPreview()"></div></div>
+ <div id="cbx"></div>
+ <div class="grid"><div><label for="pu">Photo (URL, facultatif)</label><input id="pu" placeholder="https://…"></div><div><label for="pth">Seuil stock faible</label><input id="pth" type="number" min="0" placeholder="${LOW}"></div></div>
+ <label style="display:flex;gap:8px;align-items:center;font-weight:400;margin:0 0 12px"><input type="checkbox" id="pvis" checked style="width:auto;min-height:auto">Afficher sur le site vitrine</label>
+ <button class="btn" onclick="addProduct()">Ajouter le produit</button></div>`:''}
+ <div class="row"><input type="search" placeholder="Rechercher (nom ou code-barres)" value="${esc(prodQ)}" oninput="prodQ=this.value;go('products')"></div>
+ ${c.length?`<div class="panel scroll"><table><tr><th></th><th>Produit</th><th>Variante</th><th>Couleur</th><th>Code-barres</th><th class="n">Stock</th>${ad?'<th class="n">Achat</th>':''}<th class="n">Prix</th>${ed?'<th class="n">Site</th>':''}</tr>${c.map(x=>`<tr><td>${th(x.p)}</td><td>${esc(x.p.name)}</td><td>${esc(x.v.variant)}</td><td>${esc(x.v.color)}</td><td>${esc(x.v.barcode||'—')}</td><td class="n">${x.q<=(x.p.low_threshold||LOW)?`<span class="pill ${x.q<=0?'zero':''}">${x.q}</span>`:x.q}</td>${ad?`<td class="n">${dh(x.p.cost)}</td>`:''}<td class="n">${dh(x.p.price)}</td>${ed?`<td class="n"><button class="tg" style="${x.p.visible?'':'opacity:.35'}" onclick="toggleVisible('${x.p.id}',${x.p.visible})"></button></td>`:''}</tr>`).join('')}</table></div>`:'<div class="panel empty">Aucun produit trouvé.</div>'}`;
+}
+async function addProduct(){
+ const name=$('#pn').value.trim(),price=parseFloat($('#pp').value);
+ if(!name||isNaN(price)){toast('Indiquez un nom et un prix');return}
+ const{data:p,error}=await sb.from('products').insert({name,price,cost:isAdmin()?(parseFloat($('#pa').value)||0):0,photo_url:$('#pu').value.trim()||null,visible:$('#pvis').checked,low_threshold:parseInt($('#pth').value)||null}).select().single();
+ if(error){toast(error.message);return}
+ const V=parseList($('#pv').value),C=parseList($('#pc').value),single=V.length*C.length===1,bc=$('#pb').value.trim();
+ const rows=[];document.querySelectorAll('.cbn').forEach(i=>{});
+ for(const v of V)for(const c of C){
+  const cbInput=[...document.querySelectorAll('.cbn')].find(i=>i.dataset.v===v&&i.dataset.c===c);
+  rows.push({product_id:p.id,variant:v,color:c,barcode:(single?bc:(cbInput?cbInput.value.trim():''))||null});
+ }
+ const{error:e2}=await sb.from('variants').insert(rows);
+ if(e2){toast('Produit créé mais erreur sur les déclinaisons : '+e2.message);return}
+ toast('Produit ajouté 🎉');await refresh()
+}
+async function toggleVisible(id,cur){const{error}=await sb.from('products').update({visible:!cur}).eq('id',id);if(error)toast(error.message);await refresh()}
+
+/* ---------- Scan (caméra) ---------- */
+async function cam(fn){
+ if(!('BarcodeDetector' in window)||!navigator.mediaDevices){toast('Caméra non prise en charge ici : tapez le code');return}
+ let st;try{st=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}})}catch(e){toast('Caméra refusée ou bloquée');return}
+ const box=document.createElement('div');box.className='camb';box.innerHTML='<video playsinline muted></video><button class="btn">Fermer</button>';
+ document.body.appendChild(box);const v=box.querySelector('video');v.srcObject=st;await v.play();
+ const det=new BarcodeDetector();let iv;const stop=()=>{clearInterval(iv);st.getTracks().forEach(t=>t.stop());box.remove()};
+ box.querySelector('button').onclick=stop;
+ iv=setInterval(async()=>{try{const r=await det.detect(v);if(r.length){stop();window[fn](r[0].rawValue)}}catch(e){}},400)
+}
+const scanBox=fn=>`<div class="scan"><input id="sc" aria-label="Code-barres" placeholder="Scanner ou saisir un code-barres, puis Entrée" onkeydown="if(event.key==='Enter'){${fn}(this.value);this.value=''}"><button class="btn" onclick="cam('${fn}')">📷 Caméra</button></div>`;
+
+/* ---------- Entrées ---------- */
+function elLine(f,val,i){const l=entryLines[i];l[f]=val;render()}
+function scanEntry(code){const f=findByBarcode(code);if(!f){toast('Code inconnu');return}
+ const l=entryLines.find(x=>x.vid===f.v.id);if(l)l.q=(parseInt(l.q)||0)+1;else{const n={vid:f.v.id,pname:f.p.name+' · '+f.v.variant+' · '+f.v.color,q:1};if(entryLines.length===1&&!entryLines[0].vid)entryLines[0]=n;else entryLines.push(n)}
+ render();$('#sc')?.focus()}
+function entryPicker(l,i){
+ return `<select onchange="setEntryVariant(${i},this.value)"><option value="">Produit / variante / couleur</option>${products.flatMap(p=>p.variants.map(v=>`<option value="${v.id}" ${l.vid===v.id?'selected':''}>${esc(p.name)} · ${esc(v.variant)} · ${esc(v.color)}</option>`)).join('')}</select>`;
+}
+function setEntryVariant(i,vid){entryLines[i].vid=vid;render()}
+function entries(){
+ if(!products.length)return `<h1>Entrées</h1><div class="panel empty">Ajoutez d'abord un produit. <button class="btn" onclick="go('products')">Aller aux produits</button></div>`;
+ return `<h1>Entrées</h1><p class="sub">Réapprovisionnement : le stock augmente.</p>
+ <div class="card">${scanBox('scanEntry')}
+ <div class="grid"><div><label for="er">Référence commande</label><input id="er"></div><div><label for="ed">Date</label><input id="ed" type="date" value="${today()}"></div><div><label for="ef">Fournisseur</label><input id="ef"></div></div>
+ ${entryLines.map((l,i)=>`<div class="line"><div style="grid-column:1/3">${entryPicker(l,i)}</div><input type="number" min="1" placeholder="Qté" value="${l.q||''}" oninput="entryLines[${i}].q=this.value"><button onclick="entryLines.splice(${i},1);render()">✕</button></div>`).join('')}
+ <div class="row"><button class="btn ghost" onclick="entryLines.push({});render()">Ajouter une ligne</button></div>
+ <button class="btn" onclick="saveEntries()">Enregistrer l'entrée</button></div>`;
+}
+async function saveEntries(){
+ const ok=entryLines.filter(l=>l.vid&&parseInt(l.q)>0);
+ if(!ok.length){toast('Complétez au moins une ligne');return}
+ const ref=$('#er').value.trim(),sup=$('#ef').value.trim();
+ for(const l of ok){
+  const pv=prodOf(l.vid);
+  const{error}=await sb.rpc('record_move',{p_variant_id:l.vid,p_type:'in',p_qty:parseInt(l.q),p_unit_price:pv?.p.price||0,p_ref:ref,p_supplier:sup,p_payment:null,p_by:me.id});
+  if(error){toast(error.message);return}
+ }
+ entryLines=[{}];toast(ok.length+' ligne(s) ajoutée(s) au stock');await refresh()
+}
+
+/* ---------- Ventes ---------- */
+function cartPicker(l,i){
+ return `<select onchange="setCartVariant(${i},this.value)"><option value="">Produit / variante / couleur</option>${products.flatMap(p=>p.variants.map(v=>`<option value="${v.id}" ${l.vid===v.id?'selected':''}>${esc(p.name)} · ${esc(v.variant)} · ${esc(v.color)}</option>`)).join('')}</select>`;
+}
+function setCartVariant(i,vid){const pv=prodOf(vid);cart[i]={vid,price:pv?.p.price||0,q:cart[i].q||1};render()}
+function scanSale(code){const f=findByBarcode(code);if(!f){toast('Code inconnu');return}
+ const l=cart.find(x=>x.vid===f.v.id);if(l)l.q=(parseInt(l.q)||0)+1;else cart.push({vid:f.v.id,price:f.p.price,q:1});
+ render();$('#sc')?.focus()}
+function scanReturn(code){const f=findByBarcode(code);if(!f){toast('Code inconnu');return}ret={vid:f.v.id,price:f.p.price,q:1,cash:true};render();$('#sc')?.focus()}
+function saleTotals(){const sub=round2(cart.reduce((s,l)=>s+(parseFloat(l.price)||0)*(parseInt(l.q)||0),0)),dv=parseFloat(saleMeta.discVal)||0,dAmt=round2(Math.min(sub,saleMeta.disc==='pct'?sub*dv/100:dv));return{sub,dAmt,total:round2(sub-dAmt)}}
+function sales(){
+ if(!products.length)return `<h1>Ventes</h1><div class="panel empty">Ajoutez d'abord un produit. <button class="btn" onclick="go('products')">Aller aux produits</button></div>`;
+ const t=saleTotals(),given=parseFloat(saleMeta.given)||0,change=round2(given-t.total);
+ return `<h1>Ventes</h1><p class="sub">Ajoutez un ou plusieurs articles ; le stock diminue à l'enregistrement.</p>
+ <div class="card">${scanBox('scanSale')}
+ ${cart.map((l,i)=>`<div class="line l4">${cartPicker(l,i)}<input type="number" min="1" placeholder="Qté" value="${l.q||''}" oninput="cart[${i}].q=this.value;render()"><input type="number" min="0" step="any" placeholder="Prix" value="${l.price??''}" oninput="cart[${i}].price=this.value;render()"><button onclick="cart.splice(${i},1);render()">✕</button></div>`).join('')}
+ <div class="row"><button class="btn ghost" onclick="cart.push({});render()">Ajouter une ligne</button></div>
+ ${cart.length?`<div class="grid"><div><label>Remise</label><div class="row" style="margin:0"><select style="max-width:100px" onchange="saleMeta.disc=this.value;render()"><option value="pct" ${saleMeta.disc==='pct'?'selected':''}>%</option><option value="amt" ${saleMeta.disc==='amt'?'selected':''}>DH</option></select><input type="number" min="0" step="any" value="${saleMeta.discVal}" oninput="saleMeta.discVal=this.value;render()"></div></div>
+ <div><label>Mode de paiement</label><div class="seg"><button class="${saleMeta.payment==='cash'?'on':''}" onclick="saleMeta.payment='cash';render()">💵 Cash</button><button class="${saleMeta.payment==='tpe'?'on':''}" onclick="saleMeta.payment='tpe';render()">💳 TPE</button></div></div></div>`:''}
+ <div class="total">Sous-total : ${dh(t.sub)}${t.dAmt?` · Remise : -${dh(t.dAmt)}`:''}<br>Total à payer : ${dh(t.total)}</div>
+ ${saleMeta.payment==='cash'?`<div class="grid"><div><label>Montant donné</label><input type="number" min="0" step="any" value="${saleMeta.given}" oninput="saleMeta.given=this.value;render()"></div><div><label>Monnaie à rendre</label><input value="${dh(Math.max(0,change))}" disabled></div></div>${saleMeta.given!==''&&given<t.total?'<p class="err">Montant donné insuffisant</p>':''}`:''}
+ <button class="btn" onclick="saveSale()" ${!cart.length?'disabled':''}>Enregistrer la vente</button></div>
+ ${lastReceipt?receiptCard():''}`;
+}
+async function saveSale(){
+ const ok=cart.filter(l=>l.vid&&parseInt(l.q)>0&&parseFloat(l.price)>=0);
+ if(!ok.length){toast('Ajoutez au moins un article complet');return}
+ const t=saleTotals(),given=parseFloat(saleMeta.given)||0;
+ if(saleMeta.payment==='cash'&&given<t.total){toast('Montant donné insuffisant');return}
+ const items=ok.map(l=>({variant_id:l.vid,qty:parseInt(l.q),price:parseFloat(l.price)}));
+ const{data:saleId,error}=await sb.rpc('record_sale',{p_items:items,p_discount_type:saleMeta.disc,p_discount_value:parseFloat(saleMeta.discVal)||0,p_payment:saleMeta.payment,p_given:saleMeta.payment==='cash'?given:null,p_by:me.id});
+ if(error){toast(error.message.includes('Stock')?'Stock insuffisant pour un article':error.message);return}
+ lastReceipt={id:saleId,date:today(),items:ok.map(l=>({name:prodOf(l.vid)?.p.name,v:prodOf(l.vid)?.v.variant,c:prodOf(l.vid)?.v.color,q:parseInt(l.q),price:round2(parseFloat(l.price)*(t.sub>0?t.total/t.sub:1))})),sub:t.sub,discAmt:t.dAmt,total:t.total,payment:saleMeta.payment,given,change:round2(given-t.total),by:me.name};
+ cart=[];saleMeta={disc:'pct',discVal:'',payment:saleMeta.payment,given:''};toast('Vente enregistrée 🎉');await refresh()
+}
+function receiptCard(){const r=lastReceipt;return `<div class="card" id="receipt"><h2 style="margin-top:0">Reçu</h2><p class="hint" style="margin:0 0 10px">${fd(r.date)} · ${esc(r.by)}</p>
+ <div class="panel scroll"><table><tr><th>Article</th><th class="n">Qté</th><th class="n">Total</th></tr>${r.items.map(i=>`<tr><td>${esc(i.name)} · ${esc(i.v)} · ${esc(i.c)}</td><td class="n">${i.q}</td><td class="n">${dh(i.price*i.q)}</td></tr>`).join('')}</table></div>
+ <p class="hint">Sous-total : ${dh(r.sub)}${r.discAmt?` · Remise : -${dh(r.discAmt)}`:''}</p>
+ <div class="total">Total payé : ${dh(r.total)} — ${r.payment==='cash'?'Cash':'TPE'}</div>
+ ${r.payment==='cash'?`<p class="hint">Donné : ${dh(r.given)} · Monnaie rendue : ${dh(r.change)}</p>`:''}
+ <div class="row"><button class="btn ghost" onclick="window.print()">Imprimer</button><button class="btn ghost" onclick="lastReceipt=null;render()">Fermer</button></div></div>`}
+
+/* ---------- Retours ---------- */
+function retPicker(){return `<select onchange="setRetVariant(this.value)"><option value="">Produit / variante / couleur</option>${products.flatMap(p=>p.variants.map(v=>`<option value="${v.id}" ${ret.vid===v.id?'selected':''}>${esc(p.name)} · ${esc(v.variant)} · ${esc(v.color)}</option>`)).join('')}</select>`}
+function setRetVariant(vid){const pv=prodOf(vid);ret={vid,price:pv?.p.price||0,q:1,cash:true};render()}
+async function returns(){
+ if(!products.length)return `<h1>Retours</h1><div class="panel empty">Ajoutez d'abord un produit.</div>`;
+ const{data:recent}=await sb.from('moves').select('*, variants(variant,color,product_id)').eq('type','return').order('date',{ascending:false}).limit(8);
+ return `<h1>Retours</h1><p class="sub">Un client vous rapporte un article : le stock revient, la vente est déduite du CA.</p>
+ <div class="card">${scanBox('scanReturn')}<div class="line" style="grid-template-columns:2fr 1fr 1fr">${retPicker()}<input type="number" min="1" placeholder="Qté" value="${ret.q||''}" oninput="ret.q=this.value"><input type="number" min="0" step="any" placeholder="Prix remboursé" value="${ret.price??''}" oninput="ret.price=this.value"></div>
+ <label style="display:flex;gap:8px;align-items:center;font-weight:400;margin:10px 0 14px"><input type="checkbox" style="width:auto;min-height:auto" ${ret.cash!==false?'checked':''} onchange="ret.cash=this.checked">Remboursé en cash (sort de la caisse)</label>
+ <button class="btn" onclick="saveReturn()">Enregistrer le retour</button></div>
+ <h2>Retours récents</h2>${moveTable(recent||[])}`;
+}
+async function saveReturn(){
+ const q=parseInt(ret.q),pr=parseFloat(ret.price);
+ if(!ret.vid||!(q>0)||isNaN(pr)){toast('Complétez le produit, la quantité et le prix');return}
+ const{error}=await sb.rpc('record_move',{p_variant_id:ret.vid,p_type:'return',p_qty:q,p_unit_price:pr,p_ref:null,p_supplier:null,p_payment:ret.cash!==false?'cash':'tpe',p_by:me.id});
+ if(error){toast(error.message);return}
+ ret={};toast('Retour enregistré, stock mis à jour');await refresh()
+}
+
+/* ---------- Caisse ---------- */
+async function cash(){
+ const{data:cm2}=await sb.from('cash_moves').select('*').order('date',{ascending:false}).limit(30);
+ const{data:mv}=await sb.from('moves').select('*, variants(variant,color,product_id)').eq('payment','cash').in('type',['out','return']).order('date',{ascending:false}).limit(30);
+ let bal=0;(mv||[]).forEach(x=>bal+=(x.type==='out'?1:-1)*x.qty*x.unit_price);(cm2||[]).forEach(m=>bal+=m.type==='in'?m.amount:-m.amount);bal=round2(bal);
+ const list=[...(mv||[]).map(x=>({date:x.date,label:(x.type==='out'?'Vente':'Retour')+' — '+(prodOf(x.variant_id)?.p.name||''),amount:(x.type==='out'?1:-1)*x.qty*x.unit_price})),...(cm2||[]).map(m=>({date:m.date,label:(m.type==='in'?'Cash in':'Cash out')+(m.note?' — '+m.note:''),amount:m.type==='in'?m.amount:-m.amount}))].sort((a,b)=>a.date<b.date?1:-1).slice(0,20);
+ return `<h1>Caisse</h1><p class="sub">Suivi du cash physique disponible.</p>
+ <div class="ovp"><h2>Solde actuel</h2><div class="ov"><div class="oc" data-t="c"><span class="ic">${ic('wallet')}</span><div><b>${dh(bal)}</b><span>En caisse</span></div></div></div></div>
+ <div class="card"><h2 style="margin-top:0">Cash in / Cash out</h2><p class="hint" style="margin:0 0 12px">N'affecte ni le chiffre d'affaires ni le profit.</p>
+ <div class="grid"><div><label>Montant (DH)</label><input type="number" min="0" step="any" value="${cm.amount}" oninput="cm.amount=this.value"></div><div><label>Motif</label><input value="${esc(cm.note||'')}" oninput="cm.note=this.value"></div></div>
+ <div class="row"><button class="btn" onclick="cashMove('in')">➕ Cash in</button><button class="btn ghost" onclick="cashMove('out')">➖ Cash out</button></div></div>
+ <h2>Mouvements récents</h2>${list.length?`<div class="panel scroll"><table><tr><th>Date</th><th>Détail</th><th class="n">Montant</th></tr>${list.map(x=>`<tr><td>${fd(x.date)}</td><td>${esc(x.label)}</td><td class="n ${x.amount<0?'out':'in'}">${x.amount<0?'-':'+'}${dh(Math.abs(x.amount))}</td></tr>`).join('')}</table></div>`:'<div class="panel empty">Aucun mouvement.</div>'}`;
+}
+async function cashMove(type){const amt=parseFloat(cm.amount);if(!(amt>0)){toast('Indiquez un montant');return}
+ const{error}=await sb.from('cash_moves').insert({type,amount:round2(amt),note:(cm.note||'').trim(),by:me.id});
+ if(error){toast(error.message);return}
+ cm={amount:'',note:''};toast('Mouvement de caisse enregistré');await render()
+}
+
+/* ---------- Historique ---------- */
+async function history(){
+ let q=sb.from('moves').select('*, variants(variant,color,product_id)').order('date',{ascending:false}).order('created_at',{ascending:false}).limit(200);
+ if(hist.type!=='all')q=q.eq('type',hist.type);
+ const{data}=await q;
+ const txt=hist.q.toLowerCase();
+ const rows=(data||[]).filter(x=>{const p=prodOf(x.variant_id);return((p?.p.name||'')+(x.variants?.variant||'')+(x.variants?.color||'')).toLowerCase().includes(txt)});
+ return `<h1>Historique</h1><p class="sub">Tous les mouvements, du plus récent au plus ancien.</p>
+ <div class="row"><input type="search" placeholder="Rechercher" value="${esc(hist.q)}" oninput="hist.q=this.value;go('history')">
+ <div class="seg">${[['all','Toutes'],['in','Entrées'],['out','Ventes'],['return','Retours']].map(([k,l])=>`<button class="${hist.type===k?'on':''}" onclick="hist.type='${k}';go('history')">${l}</button>`).join('')}</div></div>${moveTable(rows)}`;
+}
+
+/* ---------- Profit ---------- */
+let pr={from:'',to:''};
+async function profit(){
+ if(!pr.from){const t=today();pr={from:t.slice(0,8)+'01',to:t}}
+ const{data}=await sb.from('moves').select('*, variants(variant,color,product_id)').in('type',['out','return']).gte('date',pr.from).lte('date',pr.to);
+ const outs=data||[],sgn=x=>x.type==='out'?1:-1,rows={};let ca=0,co=0;
+ outs.forEach(x=>{const pid=x.variants?.product_id,o=rows[pid]=rows[pid]||{q:0,r:0,c:0},s=sgn(x);o.q+=s*x.qty;o.r+=s*x.qty*x.unit_price;o.c+=s*x.qty*(x.cost||0);ca+=s*x.qty*x.unit_price;co+=s*x.qty*(x.cost||0)});
+ const pf=ca-co,mg=ca?Math.round(pf/ca*100):0,card=(t,i,v,l)=>`<div class="oc" data-t="${t}"><span class="ic">${ic(i)}</span><div><b>${v}</b><span>${l}</span></div></div>`;
+ const list=Object.entries(rows).sort((a,b)=>(b[1].r-b[1].c)-(a[1].r-a[1].c));
+ return `<h1>Profit</h1><p class="sub">Choisissez la période : du … au …</p>
+ <div class="card"><div class="grid" style="margin:0"><div><label>Du</label><input type="date" value="${pr.from}" onchange="pr.from=this.value;go('profit')"></div><div><label>Au</label><input type="date" value="${pr.to}" onchange="pr.to=this.value;go('profit')"></div></div></div>
+ <div class="ov" style="margin-bottom:14px">${card('c','cart',dh(ca),"Chiffre d'affaires")}${card('a','box',dh(co),"Coût d'achat")}${card('e','trend','<span style="color:var(--'+(pf<0?'bad':'ok')+')">'+dh(pf)+'</span>','Profit')}${card('d','alert',mg+' %','Marge')}</div>
+ ${list.length?`<div class="panel scroll"><table><tr><th>Produit</th><th class="n">Vendus (net)</th><th class="n">CA</th><th class="n">Profit</th></tr>${list.map(([id,o])=>{const p=products.find(x=>x.id===id);return `<tr><td>${esc(p?.name||'(supprimé)')}</td><td class="n">${o.q}</td><td class="n">${dh(o.r)}</td><td class="n ${o.r-o.c<0?'out':'in'}">${dh(o.r-o.c)}</td></tr>`}).join('')}</table></div>`:'<div class="panel empty">Aucune vente sur cette période.</div>'}`;
+}
+
+/* ---------- Promotions ---------- */
+async function promotions(){
+ const{data}=await sb.from('promotions').select('*').order('created_at',{ascending:false});
+ const list=data||[];
+ return `<h1>Promotions</h1><p class="sub">Vos annonces et opérations (Black Friday, soldes…) affichées sur le site vitrine.</p>
+ <div class="card"><h2 style="margin-top:0">Nouvelle promotion</h2>
+ <div class="grid"><div><label for="mt">Titre</label><input id="mt" placeholder="Black Friday 🔥"></div><div><label for="md">% de remise (indicatif)</label><input id="md" type="number" min="0" max="100"></div></div>
+ <div class="grid"><div><label for="ms">Du</label><input id="ms" type="date"></div><div><label for="me2">Au</label><input id="me2" type="date"></div></div>
+ <label for="mdesc">Description</label><input id="mdesc" style="margin-bottom:14px" placeholder="Jusqu'à -30% sur tout le magasin !">
+ <button class="btn" onclick="addPromo()">Publier</button></div>
+ ${list.length?`<div class="panel scroll"><table><tr><th>Titre</th><th>Période</th><th class="n">Actif</th><th class="n"></th></tr>${list.map(m=>`<tr><td>${esc(m.title)}</td><td>${fd(m.starts_at)||'—'} → ${fd(m.ends_at)||'—'}</td><td class="n"><button class="tg" style="${m.active?'':'opacity:.35'}" onclick="togglePromo('${m.id}',${m.active})"></button></td><td class="n"><button class="btn ghost" onclick="delPromo('${m.id}')">Supprimer</button></td></tr>`).join('')}</table></div>`:'<div class="panel empty">Aucune promotion.</div>'}`;
+}
+async function addPromo(){
+ const title=$('#mt').value.trim();if(!title){toast('Indiquez un titre');return}
+ const{error}=await sb.from('promotions').insert({title,description:$('#mdesc').value.trim()||null,discount_pct:parseFloat($('#md').value)||null,starts_at:$('#ms').value||null,ends_at:$('#me2').value||null,active:true});
+ if(error){toast(error.message);return}
+ toast('Promotion publiée 🎉');await render()
+}
+async function togglePromo(id,cur){await sb.from('promotions').update({active:!cur}).eq('id',id);await render()}
+async function delPromo(id){if(confirm('Supprimer cette promotion ?')){await sb.from('promotions').delete().eq('id',id);await render()}}
+
+/* ---------- Utilisateurs ---------- */
+async function users(){
+ const{data}=await sb.from('profiles').select('*').order('created_at');
+ const list=data||[];
+ return `<h1>Utilisateurs</h1><p class="sub">Les comptes se créent dans Supabase (Authentication → Add user) ; attribuez ensuite le nom et le rôle ici.</p>
+ <div class="panel scroll"><table><tr><th>Nom</th><th>Rôle</th><th class="n"></th></tr>${list.map(u=>`<tr><td><input value="${esc(u.name)}" onchange="renameUser('${u.id}',this.value)" style="min-width:140px"></td><td><select onchange="setRole('${u.id}',this.value)">${Object.entries(ROLE).map(([k,l])=>`<option value="${k}" ${u.role===k?'selected':''}>${l}</option>`).join('')}</select></td><td class="n">${u.id===me.id?'<span class="hint">(vous)</span>':''}</td></tr>`).join('')}</table></div>
+ <p class="hint">Vendeur : ventes et consultation. Magasinier : produits et entrées. Administrateur : tout, y compris profit et utilisateurs.</p>`;
+}
+async function renameUser(id,name){await sb.from('profiles').update({name:name.trim()}).eq('id',id);if(id===me.id)me.name=name.trim();await render()}
+async function setRole(id,role){const{error}=await sb.from('profiles').update({role}).eq('id',id);if(error){toast(error.message);return}if(id===me.id)me.role=role;await render()}
+
+boot();
+</script>
+</body>
+</html>

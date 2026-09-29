@@ -26,6 +26,17 @@ const LOW=5;
 const ROLE={admin:'Administrateur',vendeur:'Vendeur',magasinier:'Magasinier'};
 const PERM={admin:['menu','home','products','entries','sales','returns','cash','history','profit','promotions','users'],vendeur:['menu','home','products','sales','returns','cash','history'],magasinier:['menu','home','products','entries','history']};
 let session=null, me=null, products=[], view='menu';
+let lang=localStorage.getItem('sa_lang')||'fr';
+document.documentElement.dir=lang==='ar'?'rtl':'ltr';
+if(localStorage.getItem('sa_theme')==='dark')document.documentElement.dataset.theme='dark';
+const TR={
+ fr:{menu:'Accueil',home:'Tableau de bord',products:'Produits',entries:'Entrées',sales:'Ventes',returns:'Retours',cash:'Caisse',history:'Historique',profit:'Profit',promotions:'Promotions',users:'Utilisateurs',logout:'Se déconnecter',hello:'Salut',add:'Ajouter',save:'Enregistrer',cancel:'Annuler',search:'Rechercher',name:'Nom',price:'Prix',qty:'Quantité',date:'Date',supplier:'Fournisseur',reference:'Référence',category:'Catégorie',subcategory:'Sous-catégorie',photo:'Photo',product:'Produit',barcode:'Code-barres',stock:'Stock'},
+ ar:{menu:'الرئيسية',home:'لوحة القيادة',products:'المنتجات',entries:'المدخلات',sales:'المبيعات',returns:'المرتجعات',cash:'الصندوق',history:'السجل',profit:'الربح',promotions:'العروض',users:'المستخدمون',logout:'تسجيل الخروج',hello:'مرحبا',add:'إضافة',save:'حفظ',cancel:'إلغاء',search:'بحث',name:'الاسم',price:'السعر',qty:'الكمية',date:'التاريخ',supplier:'المورد',reference:'المرجع',category:'الفئة',subcategory:'الفئة الفرعية',photo:'صورة',product:'المنتج',barcode:'الباركود',stock:'المخزون'}
+};
+const t=k=>TR[lang][k]||TR.fr[k]||k;
+function setLang(l){lang=l;localStorage.setItem('sa_lang',l);document.documentElement.dir=l==='ar'?'rtl':'ltr';render()}
+function toggleTheme(){const r=document.documentElement,d=r.dataset.theme==='dark';r.dataset.theme=d?'light':'dark';localStorage.setItem('sa_theme',d?'light':'dark')}
+const displayName=n=>n&&n.includes('@')?n.split('@')[0]:n;
 let hist={type:'all',q:''}, entryLines=[{}], cart=[], saleMeta={disc:'pct',discVal:'',payment:'cash',given:''}, lastReceipt=null, ret={}, cm={amount:'',note:''}, prodQ='';
 
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2400)}
@@ -67,16 +78,18 @@ const ic=n=>`<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke=
 
 /* ---------- Nav ---------- */
 function renderNav(){
- const items=[['menu','Accueil','home'],['home','Tableau de bord','trend'],['products','Produits','box'],['entries','Entrées','in'],['sales','Ventes','cart'],['returns','Retours','in'],['cash','Caisse','wallet'],['history','Historique','list'],['profit','Profit','trend'],['promotions','Promotions','megaphone'],['users','Utilisateurs','users']].filter(x=>can(x[0]));
- $('#nav').innerHTML='<div class="logo">StockAura</div><div class="me"><i>'+esc(me.name.slice(0,2).toUpperCase())+'</i><b>'+esc(me.name)+'</b><span>'+ROLE[me.role]+'</span></div>'
+ const items=[['menu',t('menu'),'home'],['home',t('home'),'trend'],['products',t('products'),'box'],['entries',t('entries'),'in'],['sales',t('sales'),'cart'],['returns',t('returns'),'in'],['cash',t('cash'),'wallet'],['history',t('history'),'list'],['profit',t('profit'),'trend'],['promotions',t('promotions'),'megaphone'],['users',t('users'),'users']].filter(x=>can(x[0]));
+ $('#nav').innerHTML='<div class="logo">StockAura</div><div class="me"><i>'+esc(displayName(me.name).slice(0,2).toUpperCase())+'</i><b>'+esc(displayName(me.name))+'</b><span>'+ROLE[me.role]+'</span></div>'
  +items.map(([k,l,i])=>`<button data-c="${k}" class="${view===k?'on':''}" onclick="go('${k}')">${ic(i)}${l}</button>`).join('')
- +'<div class="spacer"></div><button class="small" onclick="logout()">Se déconnecter</button>';
+ +`<div class="spacer"></div>
+ <div class="row" style="margin:0 0 8px;gap:6px"><button class="tg" aria-label="Mode sombre" onclick="toggleTheme()" style="flex:none"></button><select onchange="setLang(this.value)" style="min-height:32px;padding:2px 6px"><option value="fr" ${lang==='fr'?'selected':''}>FR</option><option value="ar" ${lang==='ar'?'selected':''}>AR</option></select></div>
+ <button class="small" onclick="logout()">${t('logout')}</button>`;
 }
 async function go(v){view=v;await render()}
 
 /* ---------- Data ---------- */
 async function loadProducts(){
- const{data,error}=await sb.from('products').select('id,name,price,cost,photo_url,visible,low_threshold,variants(id,variant,color,barcode,quantity)').order('created_at');
+ const{data,error}=await sb.from('products').select('id,name,price,cost,photo_url,visible,low_threshold,category,subcategory,variants(id,variant,color,barcode,quantity)').order('created_at');
  if(error){toast(error.message);return[]}
  return data||[];
 }
@@ -99,7 +112,7 @@ async function refresh(){products=await loadProducts();await render()}
 /* ---------- Menu ---------- */
 function menu(){
  const items=[['home','Tableau de bord','trend'],['products','Produits','box'],['entries','Entrées','in'],['sales','Ventes','cart'],['returns','Retours','in'],['cash','Caisse','wallet'],['profit','Profit','trend'],['history','Historique','list'],['promotions','Promotions','megaphone'],['users','Utilisateurs','users']].filter(x=>can(x[0]));
- return `<h1>Salut ${esc(me.name)} 👋</h1><p class="sub">Que voulez-vous faire ?</p>
+ return `<h1>${t('hello')} ${esc(displayName(me.name))} 👋</h1><p class="sub">Que voulez-vous faire ?</p>
  <div class="menu">${items.map(([k,l,i],idx)=>`<button class="mtile c${idx%6}" onclick="go('${k}')">${ic(i)}<span>${l}</span></button>`).join('')}</div>`;
 }
 
@@ -107,7 +120,7 @@ function menu(){
 let hp=null;
 function setPreset(k){const t=new Date(),to=today();let f=to;if(k==='week'){const d=new Date(t);d.setDate(d.getDate()-6);f=d.toISOString().slice(0,10)}if(k==='month')f=to.slice(0,8)+'01';if(k==='year')f=to.slice(0,5)+'01-01';hp={from:f,to,k};go('home')}
 async function home(){
- if(!products.length)return `<h1>Salut ${esc(me.name)} 👋</h1><p class="sub">Ajoutez un produit, une entrée, puis vendez : le stock se met à jour tout seul.</p><div class="card"><button class="btn" onclick="go('products')">Ajouter mon premier produit</button></div>`;
+ if(!products.length)return `<h1>${t('hello')} ${esc(displayName(me.name))} 👋</h1><p class="sub">Ajoutez un produit, une entrée, puis vendez : le stock se met à jour tout seul.</p><div class="card"><button class="btn" onclick="go('products')">Ajouter mon premier produit</button></div>`;
  if(!hp){const t=today();hp={from:t.slice(0,8)+'01',to:t,k:'month'}}
  const{data:moves}=await sb.from('moves').select('*, variants(variant,color,product_id)').gte('date',hp.from).lte('date',hp.to);
  const m=moves||[],sgn=x=>x.type==='out'?1:-1,trans=m.filter(x=>x.type==='out'||x.type==='return'),salesM=m.filter(x=>x.type==='out');
@@ -116,7 +129,7 @@ async function home(){
  const card=(t,i,v,l)=>`<div class="oc" data-t="${t}"><span class="ic">${ic(i)}</span><div><b>${v}</b><span>${l}</span></div></div>`;
  const presets=[['day',"Aujourd'hui"],['week','7 jours'],['month','Ce mois'],['year','Cette année']];
  const{data:recent}=await sb.from('moves').select('*, variants(variant,color,product_id)').order('date',{ascending:false}).order('created_at',{ascending:false}).limit(6);
- return `<h1>Salut ${esc(me.name)} 👋</h1><p class="sub">Voici où en est votre boutique.</p>
+ return `<h1>${t('hello')} ${esc(displayName(me.name))} 👋</h1><p class="sub">Voici où en est votre boutique.</p>
  <div class="per"><div class="seg">${presets.map(([k,l])=>`<button class="${hp.k===k?'on':''}" onclick="setPreset('${k}')">${l}</button>`).join('')}</div>
  <label>Du <input type="date" value="${hp.from}" onchange="hp.from=this.value;hp.k='';go('home')"></label><label>Au <input type="date" value="${hp.to}" onchange="hp.to=this.value;hp.k='';go('home')"></label></div>
  <div class="ovp"><h2>Aperçu</h2><div class="ov">
@@ -139,31 +152,44 @@ function cbPreview(){
  const V=parseList($('#pv').value),C=parseList($('#pc').value);
  $('#cbx').innerHTML=V.length*C.length>1?'<label>Code-barres de chaque déclinaison (facultatif)</label>'+V.flatMap(v=>C.map(c=>`<div class="scan"><span class="cl">${esc(v)} · ${esc(c)}</span><input class="cbn" data-v="${esc(v)}" data-c="${esc(c)}" placeholder="Scanner ou saisir"></div>`)).join(''):'';
 }
+function catOptions(sel){const cats=[...new Set(products.map(p=>p.category).filter(Boolean))];return`<input list="catlist" id="pcat" value="${esc(sel||'')}" placeholder="Ex. Bébé, Hygiène…"><datalist id="catlist">${cats.map(c=>`<option value="${esc(c)}">`).join('')}</datalist>`}
+let newPhotoFile=null;
+function pickPhotoFile(inp){newPhotoFile=inp.files[0]||null;const r=$('#pphp');if(newPhotoFile){const rd=new FileReader();rd.onload=()=>r.innerHTML=`<img class="th" src="${rd.result}" alt="">`;rd.readAsDataURL(newPhotoFile)}else r.innerHTML=''}
+async function uploadPhoto(file,productId){
+ const ext=(file.name.split('.').pop()||'jpg').toLowerCase(),path=`${productId}.${ext}`;
+ const{error}=await sb.storage.from('product-photos').upload(path,file,{upsert:true,cacheControl:'3600'});
+ if(error){toast('Photo non envoyée : '+error.message);return null}
+ return sb.storage.from('product-photos').getPublicUrl(path).data.publicUrl;
+}
 function productsView(){
  const q=prodQ.toLowerCase(),ed=me.role!=='vendeur',ad=isAdmin();
- const c=combos().filter(x=>(x.p.name+x.v.variant+x.v.color+(x.v.barcode||'')).toLowerCase().includes(q));
- return `<h1>Produits</h1><p class="sub">Toutes vos références, avec le stock actuel.</p>
- ${ed?`<div class="card"><h2 style="margin-top:0">Ajouter un produit</h2>
- <div class="grid"><div><label for="pn">Nom du produit</label><input id="pn"></div>
- <div><label for="pb">Code-barres</label><input id="pb" placeholder="Si une seule déclinaison"></div>
- <div><label for="pp">Prix de vente (DH)</label><input id="pp" type="number" min="0" step="any"></div>
+ const c=combos().filter(x=>(x.p.name+x.v.variant+x.v.color+(x.v.barcode||'')+(x.p.category||'')).toLowerCase().includes(q));
+ return `<h1>${t('products')}</h1><p class="sub">Toutes vos références, avec le stock actuel.</p>
+ ${ed?`<div class="card"><h2 style="margin-top:0">${t('add')} un produit</h2>
+ <div class="grid"><div><label for="pn">${t('name')} du produit</label><input id="pn"></div>
+ <div><label for="pb">${t('barcode')}</label><input id="pb" placeholder="Si une seule déclinaison"></div>
+ <div><label for="pp">${t('price')} de vente (DH)</label><input id="pp" type="number" min="0" step="any"></div>
  ${ad?`<div><label for="pa">Prix d'achat (DH)</label><input id="pa" type="number" min="0" step="any"></div>`:''}</div>
+ <div class="grid"><div><label for="pcat">${t('category')}</label>${catOptions()}</div><div><label for="psub">${t('subcategory')} (facultatif)</label><input id="psub"></div></div>
  <div class="grid"><div><label for="pv">Variantes</label><input id="pv" placeholder="iPhone 15, iPhone 16" oninput="cbPreview()"></div>
  <div><label for="pc">Couleurs</label><input id="pc" placeholder="Noir, Rose, Bleu" oninput="cbPreview()"></div></div>
  <div id="cbx"></div>
- <div class="grid"><div><label for="pu">Photo (URL, facultatif)</label><input id="pu" placeholder="https://…"></div><div><label for="pth">Seuil stock faible</label><input id="pth" type="number" min="0" placeholder="${LOW}"></div></div>
+ <div class="grid"><div><label for="pphoto">${t('photo')} (facultatif)</label><input id="pphoto" type="file" accept="image/*" onchange="pickPhotoFile(this)"></div><div><label for="pth">Seuil stock faible</label><input id="pth" type="number" min="0" placeholder="${LOW}"></div></div>
+ <div id="pphp" style="margin-bottom:10px"></div>
  <label style="display:flex;gap:8px;align-items:center;font-weight:400;margin:0 0 12px"><input type="checkbox" id="pvis" checked style="width:auto;min-height:auto">Afficher sur le site vitrine</label>
- <button class="btn" onclick="addProduct()">Ajouter le produit</button></div>`:''}
- <div class="row"><input type="search" placeholder="Rechercher (nom ou code-barres)" value="${esc(prodQ)}" oninput="prodQ=this.value;go('products')"></div>
- ${c.length?`<div class="panel scroll"><table><tr><th></th><th>Produit</th><th>Variante</th><th>Couleur</th><th>Code-barres</th><th class="n">Stock</th>${ad?'<th class="n">Achat</th>':''}<th class="n">Prix</th>${ed?'<th class="n">Site</th>':''}</tr>${c.map(x=>`<tr><td>${th(x.p)}</td><td>${esc(x.p.name)}</td><td>${esc(x.v.variant)}</td><td>${esc(x.v.color)}</td><td>${esc(x.v.barcode||'—')}</td><td class="n">${x.q<=(x.p.low_threshold||LOW)?`<span class="pill ${x.q<=0?'zero':''}">${x.q}</span>`:x.q}</td>${ad?`<td class="n">${dh(x.p.cost)}</td>`:''}<td class="n">${dh(x.p.price)}</td>${ed?`<td class="n"><button class="tg" style="${x.p.visible?'':'opacity:.35'}" onclick="toggleVisible('${x.p.id}',${x.p.visible})"></button></td>`:''}</tr>`).join('')}</table></div>`:'<div class="panel empty">Aucun produit trouvé.</div>'}`;
+ <button class="btn" onclick="addProduct()">${t('add')} le produit</button></div>`:''}
+ <div class="row"><input type="search" placeholder="${t('search')} (nom, catégorie, code-barres)" value="${esc(prodQ)}" oninput="prodQ=this.value;go('products')"></div>
+ ${c.length?`<div class="panel scroll"><table><tr><th></th><th>${t('product')}</th><th>${t('category')}</th><th>Variante</th><th>Couleur</th><th>${t('barcode')}</th><th class="n">${t('stock')}</th>${ad?'<th class="n">Achat</th>':''}<th class="n">${t('price')}</th>${ed?'<th class="n">Site</th>':''}</tr>${c.map(x=>`<tr><td>${th(x.p)}</td><td><b>${esc(x.p.name)}</b></td><td>${esc(x.p.category||'—')}${x.p.subcategory?' · '+esc(x.p.subcategory):''}</td><td>${esc(x.v.variant)}</td><td>${esc(x.v.color)}</td><td>${esc(x.v.barcode||'—')}</td><td class="n">${x.q<=(x.p.low_threshold||LOW)?`<span class="pill ${x.q<=0?'zero':''}">${x.q}</span>`:x.q}</td>${ad?`<td class="n">${dh(x.p.cost)}</td>`:''}<td class="n">${dh(x.p.price)}</td>${ed?`<td class="n"><button class="tg" style="${x.p.visible?'':'opacity:.35'}" onclick="toggleVisible('${x.p.id}',${x.p.visible})"></button></td>`:''}</tr>`).join('')}</table></div>`:'<div class="panel empty">Aucun produit trouvé.</div>'}`;
 }
 async function addProduct(){
- const name=$('#pn').value.trim(),price=parseFloat($('#pp').value);
+ const name=$('#pn').value.trim(),price=parseFloat($('#pp').value),category=$('#pcat').value.trim();
  if(!name||isNaN(price)){toast('Indiquez un nom et un prix');return}
- const{data:p,error}=await sb.from('products').insert({name,price,cost:isAdmin()?(parseFloat($('#pa').value)||0):0,photo_url:$('#pu').value.trim()||null,visible:$('#pvis').checked,low_threshold:parseInt($('#pth').value)||null}).select().single();
+ if(!category){toast('Indiquez une catégorie');return}
+ const{data:p,error}=await sb.from('products').insert({name,price,cost:isAdmin()?(parseFloat($('#pa').value)||0):0,category,subcategory:$('#psub').value.trim()||null,visible:$('#pvis').checked,low_threshold:parseInt($('#pth').value)||null}).select().single();
  if(error){toast(error.message);return}
+ if(newPhotoFile){const url=await uploadPhoto(newPhotoFile,p.id);if(url)await sb.from('products').update({photo_url:url}).eq('id',p.id);newPhotoFile=null}
  const V=parseList($('#pv').value),C=parseList($('#pc').value),single=V.length*C.length===1,bc=$('#pb').value.trim();
- const rows=[];document.querySelectorAll('.cbn').forEach(i=>{});
+ const rows=[];
  for(const v of V)for(const c of C){
   const cbInput=[...document.querySelectorAll('.cbn')].find(i=>i.dataset.v===v&&i.dataset.c===c);
   rows.push({product_id:p.id,variant:v,color:c,barcode:(single?bc:(cbInput?cbInput.value.trim():''))||null});
@@ -173,6 +199,7 @@ async function addProduct(){
  toast('Produit ajouté 🎉');await refresh()
 }
 async function toggleVisible(id,cur){const{error}=await sb.from('products').update({visible:!cur}).eq('id',id);if(error)toast(error.message);await refresh()}
+
 
 /* ---------- Scan (caméra) ---------- */
 async function cam(fn){
@@ -186,40 +213,45 @@ async function cam(fn){
 }
 const scanBox=fn=>`<div class="scan"><input id="sc" aria-label="Code-barres" placeholder="Scanner ou saisir un code-barres, puis Entrée" onkeydown="if(event.key==='Enter'){${fn}(this.value);this.value=''}"><button class="btn" onclick="cam('${fn}')">📷 Caméra</button></div>`;
 
+/* ---------- Recherche produit unifiée (nom ou code-barres) ---------- */
+function comboOptions(){return products.flatMap(p=>p.variants.map(v=>({vid:v.id,p,v,label:(p.variants.length>1?`${p.name} · ${v.variant}${v.color&&v.color!=='Standard'?' · '+v.color:''}`:p.name)})))}
+function resolveCombo(text){text=(text||'').trim();if(!text)return null;const opts=comboOptions();return opts.find(o=>o.v.barcode&&o.v.barcode===text)||opts.find(o=>o.label.toLowerCase()===text.toLowerCase())||null}
+function comboField(id,val,handler){return `<div><input list="dl_${id}" id="${id}" value="${esc(val||'')}" placeholder="${t('product')} : nom ou code-barres" autocomplete="off" onchange="${handler}"><datalist id="dl_${id}">${comboOptions().map(o=>`<option value="${esc(o.label)}">${o.v.barcode?esc(o.v.barcode):''}</option>`).join('')}</datalist></div>`}
+
 /* ---------- Entrées ---------- */
-function elLine(f,val,i){const l=entryLines[i];l[f]=val;render()}
+async function nextRef(){
+ const{data}=await sb.from('moves').select('ref').eq('type','in').not('ref','is',null);
+ const nums=(data||[]).map(r=>parseInt((r.ref||'').replace(/\D/g,''))).filter(n=>!isNaN(n));
+ return 'Commande'+((nums.length?Math.max(...nums):0)+1);
+}
 function scanEntry(code){const f=findByBarcode(code);if(!f){toast('Code inconnu');return}
- const l=entryLines.find(x=>x.vid===f.v.id);if(l)l.q=(parseInt(l.q)||0)+1;else{const n={vid:f.v.id,pname:f.p.name+' · '+f.v.variant+' · '+f.v.color,q:1};if(entryLines.length===1&&!entryLines[0].vid)entryLines[0]=n;else entryLines.push(n)}
+ const l=entryLines.find(x=>x.vid===f.v.id);if(l)l.q=(parseInt(l.q)||0)+1;else{const n={vid:f.v.id,q:1};if(entryLines.length===1&&!entryLines[0].vid)entryLines[0]=n;else entryLines.push(n)}
  render();$('#sc')?.focus()}
-function entryPicker(l,i){
- return `<select onchange="setEntryVariant(${i},this.value)"><option value="">Produit / variante / couleur</option>${products.flatMap(p=>p.variants.map(v=>`<option value="${v.id}" ${l.vid===v.id?'selected':''}>${esc(p.name)} · ${esc(v.variant)} · ${esc(v.color)}</option>`)).join('')}</select>`;
-}
-function setEntryVariant(i,vid){entryLines[i].vid=vid;render()}
-function entries(){
- if(!products.length)return `<h1>Entrées</h1><div class="panel empty">Ajoutez d'abord un produit. <button class="btn" onclick="go('products')">Aller aux produits</button></div>`;
- return `<h1>Entrées</h1><p class="sub">Réapprovisionnement : le stock augmente.</p>
+function entryFieldChange(i,val){const m=resolveCombo(val);if(m)entryLines[i].vid=m.vid;else{entryLines[i].vid=null;if(val)toast('Produit introuvable')}render()}
+async function entries(){
+ if(!products.length)return `<h1>${t('entries')}</h1><div class="panel empty">Ajoutez d'abord un produit. <button class="btn" onclick="go('products')">Aller aux produits</button></div>`;
+ const suggestedRef=await nextRef();
+ return `<h1>${t('entries')}</h1><p class="sub">Réapprovisionnement : le stock augmente.</p>
  <div class="card">${scanBox('scanEntry')}
- <div class="grid"><div><label for="er">Référence commande</label><input id="er"></div><div><label for="ed">Date</label><input id="ed" type="date" value="${today()}"></div><div><label for="ef">Fournisseur</label><input id="ef"></div></div>
- ${entryLines.map((l,i)=>`<div class="line"><div style="grid-column:1/3">${entryPicker(l,i)}</div><input type="number" min="1" placeholder="Qté" value="${l.q||''}" oninput="entryLines[${i}].q=this.value"><button onclick="entryLines.splice(${i},1);render()">✕</button></div>`).join('')}
+ <div class="grid"><div><label for="er">${t('reference')} commande</label><input id="er" placeholder="${suggestedRef} (laisser vide = auto)"></div><div><label for="edt">${t('date')}</label><input id="edt" type="date" value="${today()}"></div><div><label for="ef">${t('supplier')}</label><input id="ef"></div><div><label for="edue">Échéance de paiement</label><input id="edue" type="date"></div></div>
+ ${entryLines.map((l,i)=>`<div class="line line2">${comboField('el'+i,l.vid?comboOptions().find(o=>o.vid===l.vid)?.label:'',`entryFieldChange(${i},this.value)`)}<input type="number" min="1" placeholder="${t('qty')}" value="${l.q||''}" oninput="entryLines[${i}].q=this.value"><button onclick="entryLines.splice(${i},1);render()">✕</button></div>`).join('')}
  <div class="row"><button class="btn ghost" onclick="entryLines.push({});render()">Ajouter une ligne</button></div>
- <button class="btn" onclick="saveEntries()">Enregistrer l'entrée</button></div>`;
+ <button class="btn" onclick="saveEntries('${suggestedRef}')">${t('save')} l'entrée</button></div>`;
 }
-async function saveEntries(){
+async function saveEntries(suggestedRef){
  const ok=entryLines.filter(l=>l.vid&&parseInt(l.q)>0);
- if(!ok.length){toast('Complétez au moins une ligne');return}
- const ref=$('#er').value.trim(),sup=$('#ef').value.trim();
+ if(!ok.length){toast('Complétez au moins une ligne avec un produit reconnu');return}
+ const ref=$('#er').value.trim()||suggestedRef,sup=$('#ef').value.trim(),due=$('#edue').value||null;
  for(const l of ok){
   const pv=prodOf(l.vid);
-  const{error}=await sb.rpc('record_move',{p_variant_id:l.vid,p_type:'in',p_qty:parseInt(l.q),p_unit_price:pv?.p.price||0,p_ref:ref,p_supplier:sup,p_payment:null,p_by:me.id});
+  const{error}=await sb.rpc('record_move',{p_variant_id:l.vid,p_type:'in',p_qty:parseInt(l.q),p_unit_price:pv?.p.price||0,p_ref:ref,p_supplier:sup,p_payment:null,p_by:me.id,p_due_date:due});
   if(error){toast(error.message);return}
  }
  entryLines=[{}];toast(ok.length+' ligne(s) ajoutée(s) au stock');await refresh()
 }
 
 /* ---------- Ventes ---------- */
-function cartPicker(l,i){
- return `<select onchange="setCartVariant(${i},this.value)"><option value="">Produit / variante / couleur</option>${products.flatMap(p=>p.variants.map(v=>`<option value="${v.id}" ${l.vid===v.id?'selected':''}>${esc(p.name)} · ${esc(v.variant)} · ${esc(v.color)}</option>`)).join('')}</select>`;
-}
+function cartFieldChange(i,val){const m=resolveCombo(val);if(m){const pv=prodOf(m.vid);cart[i]={vid:m.vid,price:pv?.p.price||0,q:cart[i].q||1}}else{cart[i]={};if(val)toast('Produit introuvable')}render()}
 function setCartVariant(i,vid){const pv=prodOf(vid);cart[i]={vid,price:pv?.p.price||0,q:cart[i].q||1};render()}
 function scanSale(code){const f=findByBarcode(code);if(!f){toast('Code inconnu');return}
  const l=cart.find(x=>x.vid===f.v.id);if(l)l.q=(parseInt(l.q)||0)+1;else cart.push({vid:f.v.id,price:f.p.price,q:1});
@@ -227,28 +259,28 @@ function scanSale(code){const f=findByBarcode(code);if(!f){toast('Code inconnu')
 function scanReturn(code){const f=findByBarcode(code);if(!f){toast('Code inconnu');return}ret={vid:f.v.id,price:f.p.price,q:1,cash:true};render();$('#sc')?.focus()}
 function saleTotals(){const sub=round2(cart.reduce((s,l)=>s+(parseFloat(l.price)||0)*(parseInt(l.q)||0),0)),dv=parseFloat(saleMeta.discVal)||0,dAmt=round2(Math.min(sub,saleMeta.disc==='pct'?sub*dv/100:dv));return{sub,dAmt,total:round2(sub-dAmt)}}
 function sales(){
- if(!products.length)return `<h1>Ventes</h1><div class="panel empty">Ajoutez d'abord un produit. <button class="btn" onclick="go('products')">Aller aux produits</button></div>`;
- const t=saleTotals(),given=parseFloat(saleMeta.given)||0,change=round2(given-t.total);
- return `<h1>Ventes</h1><p class="sub">Ajoutez un ou plusieurs articles ; le stock diminue à l'enregistrement.</p>
+ if(!products.length)return `<h1>${t('sales')}</h1><div class="panel empty">Ajoutez d'abord un produit. <button class="btn" onclick="go('products')">Aller aux produits</button></div>`;
+ const tot=saleTotals(),given=parseFloat(saleMeta.given)||0,change=round2(given-tot.total);
+ return `<h1>${t('sales')}</h1><p class="sub">Ajoutez un ou plusieurs articles ; le stock diminue à l'enregistrement.</p>
  <div class="card">${scanBox('scanSale')}
- ${cart.map((l,i)=>`<div class="line l4">${cartPicker(l,i)}<input type="number" min="1" placeholder="Qté" value="${l.q||''}" oninput="cart[${i}].q=this.value;render()"><input type="number" min="0" step="any" placeholder="Prix" value="${l.price??''}" oninput="cart[${i}].price=this.value;render()"><button onclick="cart.splice(${i},1);render()">✕</button></div>`).join('')}
+ ${cart.map((l,i)=>`<div class="line line3">${comboField('cl'+i,l.vid?comboOptions().find(o=>o.vid===l.vid)?.label:'',`cartFieldChange(${i},this.value)`)}<input type="number" min="1" placeholder="${t('qty')}" value="${l.q||''}" oninput="cart[${i}].q=this.value;render()"><input type="number" min="0" step="any" placeholder="${t('price')}" value="${l.price??''}" oninput="cart[${i}].price=this.value;render()"><button onclick="cart.splice(${i},1);render()">✕</button></div>`).join('')}
  <div class="row"><button class="btn ghost" onclick="cart.push({});render()">Ajouter une ligne</button></div>
  ${cart.length?`<div class="grid"><div><label>Remise</label><div class="row" style="margin:0"><select style="max-width:100px" onchange="saleMeta.disc=this.value;render()"><option value="pct" ${saleMeta.disc==='pct'?'selected':''}>%</option><option value="amt" ${saleMeta.disc==='amt'?'selected':''}>DH</option></select><input type="number" min="0" step="any" value="${saleMeta.discVal}" oninput="saleMeta.discVal=this.value;render()"></div></div>
  <div><label>Mode de paiement</label><div class="seg"><button class="${saleMeta.payment==='cash'?'on':''}" onclick="saleMeta.payment='cash';render()">💵 Cash</button><button class="${saleMeta.payment==='tpe'?'on':''}" onclick="saleMeta.payment='tpe';render()">💳 TPE</button></div></div></div>`:''}
- <div class="total">Sous-total : ${dh(t.sub)}${t.dAmt?` · Remise : -${dh(t.dAmt)}`:''}<br>Total à payer : ${dh(t.total)}</div>
- ${saleMeta.payment==='cash'?`<div class="grid"><div><label>Montant donné</label><input type="number" min="0" step="any" value="${saleMeta.given}" oninput="saleMeta.given=this.value;render()"></div><div><label>Monnaie à rendre</label><input value="${dh(Math.max(0,change))}" disabled></div></div>${saleMeta.given!==''&&given<t.total?'<p class="err">Montant donné insuffisant</p>':''}`:''}
- <button class="btn" onclick="saveSale()" ${!cart.length?'disabled':''}>Enregistrer la vente</button></div>
+ <div class="total">Sous-total : ${dh(tot.sub)}${tot.dAmt?` · Remise : -${dh(tot.dAmt)}`:''}<br>Total à payer : ${dh(tot.total)}</div>
+ ${saleMeta.payment==='cash'?`<div class="grid"><div><label>Montant donné</label><input type="number" min="0" step="any" value="${saleMeta.given}" oninput="saleMeta.given=this.value;render()"></div><div><label>Monnaie à rendre</label><input value="${dh(Math.max(0,change))}" disabled></div></div>${saleMeta.given!==''&&given<tot.total?'<p class="err">Montant donné insuffisant</p>':''}`:''}
+ <button class="btn" onclick="saveSale()" ${!cart.length?'disabled':''}>${t('save')} la vente</button></div>
  ${lastReceipt?receiptCard():''}`;
 }
 async function saveSale(){
  const ok=cart.filter(l=>l.vid&&parseInt(l.q)>0&&parseFloat(l.price)>=0);
  if(!ok.length){toast('Ajoutez au moins un article complet');return}
- const t=saleTotals(),given=parseFloat(saleMeta.given)||0;
- if(saleMeta.payment==='cash'&&given<t.total){toast('Montant donné insuffisant');return}
+ const tt=saleTotals(),given=parseFloat(saleMeta.given)||0;
+ if(saleMeta.payment==='cash'&&given<tt.total){toast('Montant donné insuffisant');return}
  const items=ok.map(l=>({variant_id:l.vid,qty:parseInt(l.q),price:parseFloat(l.price)}));
  const{data:saleId,error}=await sb.rpc('record_sale',{p_items:items,p_discount_type:saleMeta.disc,p_discount_value:parseFloat(saleMeta.discVal)||0,p_payment:saleMeta.payment,p_given:saleMeta.payment==='cash'?given:null,p_by:me.id});
  if(error){toast(error.message.includes('Stock')?'Stock insuffisant pour un article':error.message);return}
- lastReceipt={id:saleId,date:today(),items:ok.map(l=>({name:prodOf(l.vid)?.p.name,v:prodOf(l.vid)?.v.variant,c:prodOf(l.vid)?.v.color,q:parseInt(l.q),price:round2(parseFloat(l.price)*(t.sub>0?t.total/t.sub:1))})),sub:t.sub,discAmt:t.dAmt,total:t.total,payment:saleMeta.payment,given,change:round2(given-t.total),by:me.name};
+ lastReceipt={id:saleId,date:today(),items:ok.map(l=>({name:prodOf(l.vid)?.p.name,v:prodOf(l.vid)?.v.variant,c:prodOf(l.vid)?.v.color,q:parseInt(l.q),price:round2(parseFloat(l.price)*(tt.sub>0?tt.total/tt.sub:1))})),sub:tt.sub,discAmt:tt.dAmt,total:tt.total,payment:saleMeta.payment,given,change:round2(given-tt.total),by:me.name};
  cart=[];saleMeta={disc:'pct',discVal:'',payment:saleMeta.payment,given:''};toast('Vente enregistrée 🎉');await refresh()
 }
 function receiptCard(){const r=lastReceipt;return `<div class="card" id="receipt"><h2 style="margin-top:0">Reçu</h2><p class="hint" style="margin:0 0 10px">${fd(r.date)} · ${esc(r.by)}</p>

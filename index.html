@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Notre boutique — StockAura</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<style>
+body.pub{background:var(--page) fixed}
+body.pub .app{display:block;border:0;border-radius:0;max-width:1100px;margin:0 auto;min-height:100vh}
+body.pub main{max-width:none;padding:28px clamp(16px,4vw,40px)}
+.cartdrawer{position:fixed;right:0;top:0;bottom:0;width:min(380px,92vw);background:var(--card);box-shadow:-8px 0 24px rgba(0,0,0,.15);transform:translateX(105%);transition:transform .25s;z-index:15;display:flex;flex-direction:column;padding:20px;overflow-y:auto}
+.cartdrawer.open{transform:translateX(0)}
+.fab{position:fixed;right:20px;bottom:calc(20px + env(safe-area-inset-bottom,0px));z-index:14;border-radius:99px;padding:14px 20px;box-shadow:0 6px 18px rgba(0,0,0,.2)}
+.citem{display:flex;justify-content:space-between;align-items:center;gap:8px;border-bottom:1px solid var(--line);padding:10px 0}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:13;opacity:0;pointer-events:none;transition:opacity .2s}
+.overlay.open{opacity:1;pointer-events:auto}
+</style>
+</head>
+<body class="pub">
+<div class="app"><main id="main"><p class="sub">Chargement…</p></main></div>
+<div class="overlay" id="ov" onclick="closeCart()"></div>
+<div class="cartdrawer" id="drawer"></div>
+<button class="btn fab" id="fab" onclick="openCart()" style="display:none">🛒 <span id="fabn">0</span></button>
+<div id="toast" role="status"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="supabase-config.js"></script>
+<script>
+const $=s=>document.querySelector(s);
+const esc=t=>String(t??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const dh=n=>Math.round(n||0).toLocaleString('fr-FR')+' DH';
+const fd=d=>d?d.split('-').reverse().join('/'):'';
+const LOW=5;
+let products=[],promos=[],cart={};
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2400)}
+
+async function boot(){
+ const [{data:p,error:e1},{data:pr,error:e2}]=await Promise.all([
+  sb.from('products').select('id,name,price,photo_url,low_threshold,variants(id,variant,color,quantity)').eq('visible',true).order('created_at'),
+  sb.from('promotions').select('*').eq('active',true).order('created_at',{ascending:false})
+ ]);
+ if(e1)toast(e1.message);
+ products=p||[];promos=pr||[];
+ render();
+}
+
+function stBadge(x){const t=x.p.low_threshold||LOW,st=x.v.quantity<=0?['Rupture','bad']:x.v.quantity<=t?['Stock faible','warn']:['En stock','ok'];return `<span class="stbadge" style="color:var(--${st[1]})">${st[0]}</span>`}
+function combos(){return products.flatMap(p=>p.variants.map(v=>({p,v})))}
+
+function render(){
+ const list=combos();
+ $('#main').innerHTML=`<h1>Notre boutique 🛍️</h1><p class="sub">Découvrez nos produits disponibles.</p>
+ ${promos.length?promos.map(m=>`<div class="badge-promo">${esc(m.title)}${m.discount_pct?' (jusqu\u2019\u00e0 -'+m.discount_pct+'%)':''}<small>${esc(m.description||'')}${m.ends_at?' \u00b7 Jusqu\u2019au '+fd(m.ends_at):''}</small></div>`).join(''):''}
+ ${list.length?`<div class="sgrid">${list.map(x=>`<div class="scard">${x.p.photo_url?`<img class="th" src="${esc(x.p.photo_url)}" alt="${esc(x.p.name)}">`:'<span class="th">📦</span>'}<b>${esc(x.p.name)}</b><span>${esc(x.v.variant)}${x.v.color&&x.v.color!=='Standard'?' · '+esc(x.v.color):''}</span><span class="price">${dh(x.p.price)}</span>${stBadge(x)}${x.v.quantity>0?`<button class="btn" style="margin-top:8px;width:100%" onclick="addToCart('${x.v.id}')">Ajouter</button>`:''}</div>`).join('')}</div>`:'<div class="panel empty">Aucun produit disponible pour le moment.</div>'}`;
+ updateFab();
+}
+function addToCart(vid){cart[vid]=(cart[vid]||0)+1;toast('Ajouté au panier');updateFab();if($('#drawer').classList.contains('open'))renderCart()}
+function updateFab(){const n=Object.values(cart).reduce((s,q)=>s+q,0);$('#fab').style.display=n?'block':'none';$('#fabn').textContent=n}
+function cartLines(){return Object.entries(cart).map(([vid,q])=>{const c=combos().find(x=>x.v.id===vid);return c?{...c,q}:null}).filter(Boolean)}
+function cartTotal(){return cartLines().reduce((s,l)=>s+l.q*l.p.price,0)}
+function openCart(){renderCart();$('#drawer').classList.add('open');$('#ov').classList.add('open')}
+function closeCart(){$('#drawer').classList.remove('open');$('#ov').classList.remove('open')}
+function changeQty(vid,d){cart[vid]=(cart[vid]||0)+d;if(cart[vid]<=0)delete cart[vid];updateFab();renderCart()}
+function renderCart(){
+ const lines=cartLines();
+ $('#drawer').innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"><h2 style="margin:0">Votre commande</h2><button class="btn ghost" onclick="closeCart()">✕</button></div>
+ ${lines.length?lines.map(l=>`<div class="citem"><div><b>${esc(l.p.name)}</b><br><span class="hint">${esc(l.v.variant)} · ${esc(l.v.color)}</span></div><div style="display:flex;align-items:center;gap:6px"><button class="qtybtn" onclick="changeQty('${l.v.id}',-1)">−</button>${l.q}<button class="qtybtn" onclick="changeQty('${l.v.id}',1)">+</button></div></div>`).join(''):'<p class="hint">Votre panier est vide.</p>'}
+ ${lines.length?`<div class="total" style="margin:16px 0">Total : ${dh(cartTotal())}</div>
+ <label for="cn">Nom</label><input id="cn" style="margin-bottom:10px">
+ <label for="cp">Téléphone</label><input id="cp" style="margin-bottom:10px">
+ <label for="ca">Adresse (facultatif)</label><input id="ca" style="margin-bottom:10px">
+ <label for="cnote">Note (facultatif)</label><input id="cnote" style="margin-bottom:14px">
+ <button class="btn" onclick="submitOrder()">Valider la commande</button>`:''}`;
+}
+async function submitOrder(){
+ const name=$('#cn').value.trim(),phone=$('#cp').value.trim();
+ if(!name||!phone){toast('Indiquez votre nom et votre téléphone');return}
+ const items=cartLines().map(l=>({variant_id:l.v.id,qty:l.q,price:l.p.price}));
+ const{error}=await sb.rpc('record_order',{p_customer_name:name,p_phone:phone,p_address:$('#ca').value.trim()||null,p_note:$('#cnote').value.trim()||null,p_items:items});
+ if(error){toast(error.message);return}
+ cart={};closeCart();updateFab();toast('Commande envoyée 🎉 Nous vous contactons bientôt.');
+}
+
+boot();
+</script>
+</body>
+</html>

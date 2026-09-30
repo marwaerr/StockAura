@@ -23,13 +23,12 @@ header{background:var(--card);position:sticky;top:0;z-index:10;box-shadow:0 1px 
 .ic{display:flex;gap:16px;font-size:18px;align-items:center;flex:none}
 .ic button{all:unset;cursor:pointer;position:relative}
 .ic b{position:absolute;top:-8px;right:-10px;background:var(--pink);color:#fff;font:600 10px/16px Poppins;min-width:16px;text-align:center;border-radius:50%;padding:0 2px}
-.hero{background:var(--hero);position:relative;border-radius:0 0 40px 40px;overflow:hidden}
-.hero .w{position:relative;padding:40px 20px;display:grid;grid-template-columns:1.3fr auto;gap:18px;align-items:center}
-.hero .blob{position:absolute;right:-60px;top:-60px;width:260px;height:260px;border-radius:50%;background:radial-gradient(circle at 30% 30%,var(--pink-m),var(--lav));opacity:.55}
-.hero .logobig{width:120px;height:120px;object-fit:contain;position:relative;justify-self:end}
-.pill{display:inline-block;background:var(--teal-s);color:var(--teal);font-size:11px;font-weight:600;padding:5px 14px;border-radius:99px;position:relative}
+.hero{position:relative;border-radius:0 0 40px 40px;overflow:hidden;background:var(--hero) url('hero-baby.jpg') right center/auto 100% no-repeat}
+.hero:before{content:"";position:absolute;inset:0;background:linear-gradient(90deg,var(--hero) 40%,rgba(248,246,247,.65) 62%,transparent 82%)}
+.hero .w{position:relative;z-index:1;padding:40px 20px;display:grid;gap:18px;max-width:560px}
 .hero h1{font-size:clamp(26px,5vw,38px);line-height:1.22;margin:12px 0 10px;position:relative}.hero h1 span{color:var(--pink)}
 .hero p{max-width:420px;color:var(--mute);margin:0 0 18px;position:relative}
+.pill{display:inline-block;background:var(--teal-s);color:var(--teal);font-size:11px;font-weight:600;padding:5px 14px;border-radius:99px;position:relative}
 .btn{display:inline-block;border-radius:99px;padding:11px 24px;font-weight:600;font-size:12px;border:1px solid var(--pink);background:var(--pink);color:#fff;cursor:pointer;font-family:Poppins}
 .btn.o{background:var(--card);color:var(--ink);border-color:var(--line);margin-left:8px}
 .feat{display:grid;grid-template-columns:repeat(4,1fr);padding:30px 0}
@@ -92,7 +91,7 @@ footer h4{margin:0 0 10px;color:var(--ink);font-size:12px}footer a,footer span{d
 .total{font-size:16px;font-weight:700}
 #toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:9px 18px;border-radius:99px;font-weight:600;font-size:12.5px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:30}
 #toast.show{opacity:1}
-@media(max-width:900px){.feat,.prods{grid-template-columns:repeat(2,1fr)}.feat div{border:0}.fg{grid-template-columns:1fr 1fr}.gnav{display:none}.top span:last-child{display:none}.hero .w{grid-template-columns:1fr}.hero .logobig{display:none}}
+@media(max-width:900px){.feat,.prods{grid-template-columns:repeat(2,1fr)}.feat div{border:0}.fg{grid-template-columns:1fr 1fr}.gnav{display:none}.top span:last-child{display:none}.hero{background-image:none}.hero:before{display:none}.hero .w{max-width:none}}
 </style>
 </head>
 <body>
@@ -102,14 +101,11 @@ footer h4{margin:0 0 10px;color:var(--ink);font-size:12px}footer a,footer span{d
  <nav class="gnav"><a href="#new">Nouveautés</a><a href="#promo">Promos</a><a href="#cats">Catégories</a><a href="#prods">Produits</a><a href="#reviews">Avis</a></nav>
  <div class="ic"><button aria-label="Panier" onclick="openCart()">🛒<b id="fabn" style="display:none">0</b></button></div>
 </div></header>
-<section class="hero"><div class="blob"></div><div class="w">
- <div>
+<section class="hero"><div class="w">
  <span class="pill">✨ Tout pour bébé et maman</span>
  <h1>Bienvenue chez <span>Ola Bébé</span></h1>
  <p>Découvrez notre sélection de produits pour bébé et maman, ajoutez vos articles au panier et passez votre commande en toute simplicité.</p>
  <a class="btn" href="#prods">Voir les produits →</a><a class="btn o" href="#promo">Promotions</a>
- </div>
- <img class="logobig" src="logo.png" alt="">
 </div></section>
 <div class="w feat">
  <div><i style="background:var(--pink-m)">💳</i><span><b>Paiement flexible</b>Cash ou carte à la livraison</span></div>
@@ -152,17 +148,18 @@ const LOW=5;
 const CAT_ICONS=['🧸','👶','🍼','🧴','👕','🎁','🛏️','🚼','🧦','📦'];
 const CAT_BG=['var(--pink-s)','var(--teal-s)','var(--yel)','var(--lav)'];
 const catIcon=name=>{let h=0;for(const c of (name||''))h=(h*31+c.charCodeAt(0))>>>0;return CAT_ICONS[h%CAT_ICONS.length]};
-let products=[],promos=[],reviews=[],cart={},activeCat=null,activeBrand=null;
+let products=[],promos=[],reviews=[],cats=[],cart={},activeCat=null,activeBrand=null;
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2400)}
 
 async function boot(){
- const [{data:p,error:e1},{data:pr},{data:rv}]=await Promise.all([
+ const [{data:p,error:e1},{data:pr},{data:rv},{data:ct}]=await Promise.all([
   sb.from('products').select('id,name,price,photo_url,low_threshold,category,brand,is_new,on_sale,sale_price,variants(id,variant,color,quantity)').eq('visible',true).order('created_at'),
   sb.from('promotions').select('*').eq('active',true).order('created_at',{ascending:false}),
-  sb.from('reviews').select('*').eq('approved',true).order('created_at',{ascending:false}).limit(12)
+  sb.from('reviews').select('*').eq('approved',true).order('created_at',{ascending:false}).limit(12),
+  sb.from('categories').select('*').order('sort').order('name')
  ]);
  if(e1)toast(e1.message);
- products=p||[];promos=pr||[];reviews=rv||[];
+ products=p||[];promos=pr||[];reviews=rv||[];cats=ct||[];
  renderRibbon();renderNew();renderPromo();renderCats();renderBrands();renderGrid();renderReviews();
 }
 function renderRibbon(){
@@ -170,13 +167,13 @@ function renderRibbon(){
  $('#ribbon').innerHTML=promos.map(m=>`<span>🎉 ${esc(m.title)}${m.discount_pct?' — jusqu\u2019\u00e0 -'+m.discount_pct+'%':''}</span>`).join('');
 }
 function combos(){return products.flatMap(p=>p.variants.map(v=>({p,v})))}
-function categories(){return[...new Set(products.map(p=>p.category).filter(Boolean))]}
+function categories(){return cats.length?cats.map(c=>c.name):[...new Set(products.map(p=>p.category).filter(Boolean))]}
 function brands(){return[...new Set(products.map(p=>p.brand).filter(Boolean))]}
 function pickCat(c){activeCat=activeCat===c?null:c;renderCats();renderGrid();document.getElementById('prods').scrollIntoView({behavior:'smooth'})}
 function pickBrand(b){activeBrand=activeBrand===b?null:b;renderBrands();renderGrid();document.getElementById('prods').scrollIntoView({behavior:'smooth'})}
 function renderCats(){
- const cats=categories();
- $('#catwrap').innerHTML=cats.length?`<div class="cats">${cats.map((c,i)=>`<button class="cat ${activeCat===c?'on':''}" onclick="pickCat('${esc(c)}')"><div class="im" style="background:${CAT_BG[i%CAT_BG.length]}">${catIcon(c)}<i>${catIcon(c)}</i></div><h3>${esc(c)}</h3></button>`).join('')}</div>`:'<div class="panel empty">Les catégories apparaîtront ici dès que des produits en auront une.</div>';
+ const list=categories();
+ $('#catwrap').innerHTML=list.length?`<div class="cats">${list.map((c,i)=>{const row=cats.find(x=>x.name===c);return `<button class="cat ${activeCat===c?'on':''}" onclick="pickCat('${esc(c)}')"><div class="im" style="background:${row&&row.image_url?`center/cover url('${esc(row.image_url)}')`:CAT_BG[i%CAT_BG.length]}">${row&&row.image_url?'':catIcon(c)}<i>${catIcon(c)}</i></div><h3>${esc(c)}</h3></button>`}).join('')}</div>`:'<div class="panel empty">Les catégories apparaîtront ici dès que des produits en auront une.</div>';
 }
 function renderBrands(){
  const b=brands();

@@ -24,7 +24,7 @@ const today=()=>new Date().toISOString().slice(0,10);
 const fd=d=>d?d.split('-').reverse().join('/'):'';
 const LOW=5;
 const ROLE={admin:'Administrateur',vendeur:'Vendeur',magasinier:'Magasinier'};
-const PERM={admin:['menu','home','products','entries','sales','returns','cash','history','profit','promotions','reviews','users'],vendeur:['menu','home','products','sales','returns','cash','history'],magasinier:['menu','home','products','entries','history']};
+const PERM={admin:['menu','home','products','entries','sales','returns','cash','history','profit','promotions','reviews','settings','users'],vendeur:['menu','home','products','sales','returns','cash','history'],magasinier:['menu','home','products','entries','history']};
 let session=null, me=null, products=[], view='menu';
 let lang=localStorage.getItem('sa_lang')||'fr';
 document.documentElement.dir=lang==='ar'?'rtl':'ltr';
@@ -78,7 +78,7 @@ const ic=n=>`<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke=
 
 /* ---------- Nav ---------- */
 function renderNav(){
- const items=[['menu',t('menu'),'home'],['home',t('home'),'trend'],['products',t('products'),'box'],['entries',t('entries'),'in'],['sales',t('sales'),'cart'],['returns',t('returns'),'in'],['cash',t('cash'),'wallet'],['history',t('history'),'list'],['profit',t('profit'),'trend'],['promotions',t('promotions'),'megaphone'],['reviews','Avis','users'],['users',t('users'),'users']].filter(x=>can(x[0]));
+ const items=[['menu',t('menu'),'home'],['home',t('home'),'trend'],['products',t('products'),'box'],['entries',t('entries'),'in'],['sales',t('sales'),'cart'],['returns',t('returns'),'in'],['cash',t('cash'),'wallet'],['history',t('history'),'list'],['profit',t('profit'),'trend'],['promotions',t('promotions'),'megaphone'],['reviews','Avis','users'],['settings','Paramètres','box'],['users',t('users'),'users']].filter(x=>can(x[0]));
  $('#nav').innerHTML='<div class="logo">StockAura</div><div class="me"><i>'+esc(displayName(me.name).slice(0,2).toUpperCase())+'</i><b>'+esc(displayName(me.name))+'</b><span>'+ROLE[me.role]+'</span></div>'
  +items.map(([k,l,i])=>`<button data-c="${k}" class="${view===k?'on':''}" onclick="go('${k}')">${ic(i)}${l}</button>`).join('')
  +`<div class="spacer"></div>
@@ -96,22 +96,31 @@ async function loadProducts(){
 const combos=()=>products.flatMap(p=>p.variants.map(v=>({p,v,q:v.quantity})));
 function findByBarcode(code){code=(code||'').trim();if(!code)return null;for(const p of products)for(const v of p.variants)if(v.barcode===code)return{p,v};return null}
 function prodOf(variantId){for(const p of products)for(const v of p.variants)if(v.id===variantId)return{p,v};return null}
+let categories=[],subcategories=[];
+async function loadCategories(){
+ const[{data:c},{data:s}]=await Promise.all([sb.from('categories').select('*').order('sort').order('name'),sb.from('subcategories').select('*').order('name')]);
+ categories=c||[];subcategories=s||[];
+}
+async function refreshCats(){await loadCategories();await render()}
 
 /* ---------- Rendu principal ---------- */
 async function render(){
  if(!session||!me){$('#nav').innerHTML='';$('#main').innerHTML=loginView();return}
  if(!products.length)products=await loadProducts();
+ if(!categories.length)await loadCategories();
  if(!can(view))view='menu';
  renderNav();
- const views={menu,home,products:productsView,entries,sales,returns,cash,history,profit,promotions,reviews,users};
- $('#main').innerHTML='<p class="sub">Chargement…</p>';
- $('#main').innerHTML=await views[view]();
+ const views={menu,home,products:productsView,entries,sales,returns,cash,history,profit,promotions,reviews,settings,users};
+ const y=window.scrollY;
+ const html=await views[view]();
+ $('#main').innerHTML=html;
+ window.scrollTo(0,y);
 }
 async function refresh(){products=await loadProducts();await render()}
 
 /* ---------- Menu ---------- */
 function menu(){
- const items=[['home','Tableau de bord','trend'],['products','Produits','box'],['entries','Entrées','in'],['sales','Ventes','cart'],['returns','Retours','in'],['cash','Caisse','wallet'],['profit','Profit','trend'],['history','Historique','list'],['promotions','Promotions','megaphone'],['reviews','Avis','users'],['users','Utilisateurs','users']].filter(x=>can(x[0]));
+ const items=[['home','Tableau de bord','trend'],['products','Produits','box'],['entries','Entrées','in'],['sales','Ventes','cart'],['returns','Retours','in'],['cash','Caisse','wallet'],['profit','Profit','trend'],['history','Historique','list'],['promotions','Promotions','megaphone'],['reviews','Avis','users'],['settings','Paramètres','box'],['users','Utilisateurs','users']].filter(x=>can(x[0]));
  return `<h1>${t('hello')} ${esc(displayName(me.name))} 👋</h1><p class="sub">Que voulez-vous faire ?</p>
  <div class="menu">${items.map(([k,l,i],idx)=>`<button class="mtile c${idx%6}" onclick="go('${k}')">${ic(i)}<span>${l}</span></button>`).join('')}</div>`;
 }
@@ -152,8 +161,9 @@ function cbPreview(){
  const V=parseList($('#pv').value),C=parseList($('#pc').value);
  $('#cbx').innerHTML=V.length*C.length>1?'<label>Code-barres de chaque déclinaison (facultatif)</label>'+V.flatMap(v=>C.map(c=>`<div class="scan"><span class="cl">${esc(v)} · ${esc(c)}</span><input class="cbn" data-v="${esc(v)}" data-c="${esc(c)}" placeholder="Scanner ou saisir"></div>`)).join(''):'';
 }
-function catOptions(sel){const cats=[...new Set(products.map(p=>p.category).filter(Boolean))];return`<input list="catlist" id="pcat" value="${esc(sel||'')}" placeholder="Ex. Bébé, Hygiène…"><datalist id="catlist">${cats.map(c=>`<option value="${esc(c)}">`).join('')}</datalist>`}
-function subOptions(){const subs=[...new Set(products.map(p=>p.subcategory).filter(Boolean))];return`<input list="sublist" id="psub" placeholder="Ex. Repas, Biberon…"><datalist id="sublist">${subs.map(c=>`<option value="${esc(c)}">`).join('')}</datalist>`}
+function catOptions(sel){return`<select id="pcat" onchange="onCatChange()"><option value="">— Choisir —</option>${categories.map(c=>`<option value="${esc(c.name)}" ${sel===c.name?'selected':''}>${esc(c.name)}</option>`).join('')}</select>`}
+function subOptions(catName){const cat=categories.find(c=>c.name===catName);const subs=cat?subcategories.filter(s=>s.category_id===cat.id):[];return`<select id="psub"><option value="">— Aucune —</option>${subs.map(s=>`<option value="${esc(s.name)}">${esc(s.name)}</option>`).join('')}</select>`}
+function onCatChange(){const sel=$('#pcat').value;$('#subwrap').innerHTML=subOptions(sel)}
 function brandOptions(id){const brands=[...new Set(products.map(p=>p.brand).filter(Boolean))];return`<input list="brandlist" id="${id}" placeholder="Ex. Sophie la Girafe"><datalist id="brandlist">${brands.map(c=>`<option value="${esc(c)}">`).join('')}</datalist>`}
 let newPhotoFile=null;
 function pickPhotoFile(inp){newPhotoFile=inp.files[0]||null;const r=$('#pphp');if(newPhotoFile){const rd=new FileReader();rd.onload=()=>r.innerHTML=`<img class="th" src="${rd.result}" alt="">`;rd.readAsDataURL(newPhotoFile)}else r.innerHTML=''}
@@ -207,7 +217,8 @@ function productsView(){
  <div><label for="pb">${t('barcode')}</label><input id="pb" placeholder="Si une seule déclinaison"></div>
  <div><label for="pp">${t('price')} de vente (DH)</label><input id="pp" type="number" min="0" step="any"></div>
  ${ad?`<div><label for="pa">Prix d'achat (DH)</label><input id="pa" type="number" min="0" step="any"></div>`:''}</div>
- <div class="grid"><div><label for="pcat">${t('category')}</label>${catOptions()}</div><div><label for="psub">${t('subcategory')} (facultatif)</label>${subOptions()}</div></div>
+ <div class="grid"><div><label for="pcat">${t('category')}</label>${catOptions()}</div><div><label for="psub">${t('subcategory')} (facultatif)</label><div id="subwrap">${subOptions()}</div></div></div>
+ ${!categories.length?`<p class="hint">Aucune catégorie créée pour l'instant — ajoutez-en dans <a href="#" onclick="go('settings');return false">Paramètres</a>.</p>`:''}
  <div class="grid"><div><label for="pv">Tailles / variantes</label><input id="pv" placeholder="S, M, L" oninput="cbPreview()"></div>
  <div><label for="pc">Couleurs</label><input id="pc" placeholder="Noir, Rose, Bleu" oninput="cbPreview()"></div></div>
  <div id="cbx"></div>
@@ -220,7 +231,7 @@ function productsView(){
  <button class="btn" onclick="addProduct()">${t('add')} le produit</button></div>
  ${bulkTable()}`:''}
  <div class="row"><input type="search" placeholder="${t('search')} (nom, catégorie, marque, code-barres)" value="${esc(prodQ)}" oninput="prodQ=this.value;go('products')"></div>
- ${c.length?`<div class="panel scroll"><table><tr><th></th><th>${t('product')}</th><th>Marque</th><th>${t('category')}</th><th>Taille</th><th>Couleur</th><th>${t('barcode')}</th><th class="n">${t('stock')}</th>${ad?'<th class="n">Achat</th>':''}<th class="n">${t('price')}</th>${ed?'<th class="n">Nouveau</th><th class="n">Promo</th><th class="n">Site</th>':''}</tr>${c.map(x=>`<tr><td>${th(x.p)}</td><td><b>${esc(x.p.name)}</b></td><td>${esc(x.p.brand||'—')}</td><td>${esc(x.p.category||'—')}${x.p.subcategory?' · '+esc(x.p.subcategory):''}</td><td>${esc(x.v.variant)}</td><td>${esc(x.v.color)}</td><td>${esc(x.v.barcode||'—')}</td><td class="n">${x.q<=(x.p.low_threshold||LOW)?`<span class="pill ${x.q<=0?'zero':''}">${x.q}</span>`:x.q}</td>${ad?`<td class="n">${dh(x.p.cost)}</td>`:''}<td class="n">${x.p.on_sale&&x.p.sale_price?`<s>${dh(x.p.price)}</s> ${dh(x.p.sale_price)}`:dh(x.p.price)}</td>${ed?`<td class="n"><button class="tg" style="${x.p.is_new?'':'opacity:.35'}" onclick="toggleFlag('${x.p.id}','is_new',${!!x.p.is_new})"></button></td><td class="n"><button class="tg" style="${x.p.on_sale?'':'opacity:.35'}" onclick="toggleFlag('${x.p.id}','on_sale',${!!x.p.on_sale})"></button></td><td class="n"><button class="tg" style="${x.p.visible?'':'opacity:.35'}" onclick="toggleVisible('${x.p.id}',${x.p.visible})"></button></td>`:''}</tr>`).join('')}</table></div>`:'<div class="panel empty">Aucun produit trouvé.</div>'}`;
+ ${c.length?`<div class="panel scroll"><table><tr><th></th><th>${t('product')}</th><th>Marque</th><th>${t('category')}</th><th>Taille</th><th>Couleur</th><th>${t('barcode')}</th><th class="n">${t('stock')}</th>${ad?'<th class="n">Achat</th>':''}<th class="n">${t('price')}</th>${ed?'<th class="n">Nouveau</th><th class="n">Promo</th><th class="n">Site</th>':''}</tr>${c.map(x=>`<tr><td>${th(x.p)}</td><td><b>${esc(x.p.name)}</b></td><td>${esc(x.p.brand||'—')}</td><td>${esc(x.p.category||'—')}${x.p.subcategory?' · '+esc(x.p.subcategory):''}</td><td>${esc(x.v.variant)}</td><td>${esc(x.v.color)}</td><td>${esc(x.v.barcode||'—')}</td><td class="n">${x.q<=(x.p.low_threshold||LOW)?`<span class="pill ${x.q<=0?'zero':''}">${x.q}</span>`:x.q}</td>${ad?`<td class="n">${dh(x.p.cost)}</td>`:''}<td class="n">${x.p.on_sale&&x.p.sale_price?`<s>${dh(x.p.price)}</s> ${dh(x.p.sale_price)}`:dh(x.p.price)}</td>${ed?`<td class="n"><button class="tgsw ${x.p.is_new?'on':''}" onclick="toggleFlag('${x.p.id}','is_new',${!!x.p.is_new})"></button></td><td class="n"><button class="tgsw ${x.p.on_sale?'on':''}" onclick="toggleFlag('${x.p.id}','on_sale',${!!x.p.on_sale})"></button></td><td class="n"><button class="tgsw ${x.p.visible?'on':''}" onclick="toggleVisible('${x.p.id}',${x.p.visible})"></button></td>`:''}</tr>`).join('')}</table></div>`:'<div class="panel empty">Aucun produit trouvé.</div>'}`;
 }
 async function addProduct(){
  const name=$('#pn').value.trim(),price=parseFloat($('#pp').value),category=$('#pcat').value.trim();
@@ -284,6 +295,7 @@ function entryLineFields(i,l){
 }
 function entryNameChange(i,val){entryLines[i]=entryLines[i]||{};entryLines[i].nameText=val;const m=resolveCombo(val);if(m)entryLines[i].vid=m.vid;else if(val)toast('Produit introuvable');render(true)}
 function entryBcChange(i,val){entryLines[i]=entryLines[i]||{};entryLines[i].bcText=val;const f=findByBarcode(val);if(f)entryLines[i].vid=f.v.id;else if(val)toast('Code inconnu');render(true)}
+let lastEntryReceipt=null;
 async function entries(){
  if(!products.length)return `<h1>${t('entries')}</h1><div class="panel empty">Ajoutez d'abord un produit. <button class="btn" onclick="go('products')">Aller aux produits</button></div>`;
  const suggestedRef=await nextRef();
@@ -291,21 +303,29 @@ async function entries(){
  return `<h1>${t('entries')}</h1><p class="sub">Réapprovisionnement : indiquez le nom du produit <b>ou</b> son code-barres, l'autre se remplit automatiquement.</p>
  <div class="card">
  <div class="grid"><div><label for="er">${t('reference')} commande</label><input id="er" placeholder="${suggestedRef} (laisser vide = auto)"></div><div><label for="edt">${t('date')}</label><input id="edt" type="date" value="${today()}"></div><div><label for="ef">${t('supplier')}</label><input id="ef"></div><div><label for="edue">Échéance de paiement</label><input id="edue" type="date"></div></div>
- ${entryLines.map((l,i)=>`<div class="line l5">${entryLineFields(i,l)}<input type="number" min="1" placeholder="${t('qty')}" value="${l.q||''}" oninput="entryLines[${i}].q=this.value;render(true)"><button onclick="entryLines.splice(${i},1);render()">✕</button></div>`).join('')}
+ ${entryLines.map((l,i)=>`<div class="line l5">${entryLineFields(i,l)}<input type="number" min="1" placeholder="${t('qty')}" value="${l.q||''}" oninput="entryLines[${i}].q=this.value;render()"><button onclick="entryLines.splice(${i},1);render()">✕</button></div>`).join('')}
  <div class="row"><button class="btn ghost" onclick="entryLines.push({});render()">Ajouter une ligne</button></div>
- <div class="total" style="margin-bottom:14px">Montant de la commande : ${dh(total)}</div>
- <button class="btn" onclick="saveEntries('${suggestedRef}')">${t('save')} l'entrée</button></div>`;
+ <div class="grid"><div><label>Montant calculé</label><input value="${dh(total)}" disabled></div><div><label for="ereal">Montant réel (si remise fournisseur)</label><input id="ereal" type="number" min="0" step="any" placeholder="${Math.round(total)}"></div></div>
+ <button class="btn" onclick="saveEntries('${suggestedRef}')">${t('save')} l'entrée</button></div>
+ ${lastEntryReceipt?entryReceiptCard():''}`;
 }
+function entryReceiptCard(){const r=lastEntryReceipt;return `<div class="card" id="receipt"><h2 style="margin-top:0">Reçu d'entrée — ${esc(r.ref)}</h2><p class="hint" style="margin:0 0 10px">${fd(r.date)} · ${esc(r.supplier||'—')} · ${esc(r.by)}</p>
+ <div class="panel scroll"><table><tr><th>Article</th><th class="n">Qté</th><th class="n">Total</th></tr>${r.items.map(i=>`<tr><td>${esc(i.name)}</td><td class="n">${i.q}</td><td class="n">${dh(i.price*i.q)}</td></tr>`).join('')}</table></div>
+ <div class="total" style="margin-top:10px">Montant calculé : ${dh(r.total)}${r.actual&&r.actual!==r.total?` · Montant réel : ${dh(r.actual)}`:''}</div>
+ <div class="row"><button class="btn ghost" onclick="window.print()">Imprimer</button><button class="btn ghost" onclick="lastEntryReceipt=null;render()">Fermer</button></div></div>`}
 async function saveEntries(suggestedRef){
  const ok=entryLines.filter(l=>l.vid&&parseInt(l.q)>0);
  if(!ok.length){toast('Complétez au moins une ligne avec un produit reconnu');return}
- const ref=$('#er').value.trim()||suggestedRef,sup=$('#ef').value.trim(),due=$('#edue').value||null;
+ const ref=$('#er').value.trim()||suggestedRef,sup=$('#ef').value.trim(),due=$('#edue').value||null,realAmt=parseFloat($('#ereal').value)||null;
  for(const l of ok){
   const pv=prodOf(l.vid);
   const{error}=await sb.rpc('record_move',{p_variant_id:l.vid,p_type:'in',p_qty:parseInt(l.q),p_unit_price:pv?.p.price||0,p_ref:ref,p_supplier:sup,p_payment:null,p_by:me.id,p_due_date:due});
   if(error){toast(error.message);return}
  }
- entryLines=[{}];toast(ok.length+' ligne(s) ajoutée(s) au stock — montant total '+dh(ok.reduce((s,l)=>s+parseInt(l.q)*(prodOf(l.vid)?.p.price||0),0)));await refresh()
+ const total=ok.reduce((s,l)=>s+parseInt(l.q)*(prodOf(l.vid)?.p.price||0),0);
+ if(realAmt!==null){await sb.from('purchase_notes').upsert({ref,actual_amount:realAmt,updated_at:new Date().toISOString()})}
+ lastEntryReceipt={ref,date:$('#edt').value||today(),supplier:sup,by:me.name,total,actual:realAmt,items:ok.map(l=>({name:prodOf(l.vid)?.p.name+(prodOf(l.vid)?.v.variant!=='Standard'?' — '+prodOf(l.vid)?.v.variant:'')+(prodOf(l.vid)?.v.color&&prodOf(l.vid)?.v.color!=='Standard'?' '+prodOf(l.vid)?.v.color:''),q:parseInt(l.q),price:prodOf(l.vid)?.p.price||0}))};
+ entryLines=[{}];toast(ok.length+' ligne(s) ajoutée(s) au stock — montant '+dh(total));await refresh()
 }
 
 /* ---------- Ventes ---------- */
@@ -427,7 +447,7 @@ async function promotions(){
  <div class="grid"><div><label for="ms">Du</label><input id="ms" type="date"></div><div><label for="me2">Au</label><input id="me2" type="date"></div></div>
  <label for="mdesc">Description</label><input id="mdesc" style="margin-bottom:14px" placeholder="Jusqu'à -30% sur tout le magasin !">
  <button class="btn" onclick="addPromo()">Publier</button></div>
- ${list.length?`<div class="panel scroll"><table><tr><th>Titre</th><th>Période</th><th class="n">Actif</th><th class="n"></th></tr>${list.map(m=>`<tr><td>${esc(m.title)}</td><td>${fd(m.starts_at)||'—'} → ${fd(m.ends_at)||'—'}</td><td class="n"><button class="tg" style="${m.active?'':'opacity:.35'}" onclick="togglePromo('${m.id}',${m.active})"></button></td><td class="n"><button class="btn ghost" onclick="delPromo('${m.id}')">Supprimer</button></td></tr>`).join('')}</table></div>`:'<div class="panel empty">Aucune promotion.</div>'}`;
+ ${list.length?`<div class="panel scroll"><table><tr><th>Titre</th><th>Période</th><th class="n">Actif</th><th class="n"></th></tr>${list.map(m=>`<tr><td>${esc(m.title)}</td><td>${fd(m.starts_at)||'—'} → ${fd(m.ends_at)||'—'}</td><td class="n"><button class="tgsw ${m.active?'on':''}" onclick="togglePromo('${m.id}',${m.active})"></button></td><td class="n"><button class="btn ghost" onclick="delPromo('${m.id}')">Supprimer</button></td></tr>`).join('')}</table></div>`:'<div class="panel empty">Aucune promotion.</div>'}`;
 }
 async function addPromo(){
  const title=$('#mt').value.trim();if(!title){toast('Indiquez un titre');return}
@@ -443,11 +463,56 @@ async function reviews(){
  const{data}=await sb.from('reviews').select('*').order('created_at',{ascending:false});
  const list=data||[];
  const stars=n=>'★'.repeat(n)+'☆'.repeat(5-n);
- return `<h1>Avis clients</h1><p class="sub">Approuvez les avis à afficher sur le site vitrine.</p>
- ${list.length?`<div class="panel scroll"><table><tr><th>Client</th><th>Note</th><th>Commentaire</th><th class="n">Publié</th><th class="n"></th></tr>${list.map(r=>`<tr><td>${esc(r.customer_name)}</td><td>${stars(r.rating)}</td><td>${esc(r.comment||'')}</td><td class="n"><button class="tg" style="${r.approved?'':'opacity:.35'}" onclick="toggleReview('${r.id}',${r.approved})"></button></td><td class="n"><button class="btn ghost" onclick="delReview('${r.id}')">Supprimer</button></td></tr>`).join('')}</table></div>`:'<div class="panel empty">Aucun avis pour le moment.</div>'}`;
+ return `<h1>Avis clients</h1><p class="sub">Ajoutez un avis, ou approuvez/modifiez/supprimez ceux laissés par vos clientes et clients.</p>
+ <div class="card"><h2 style="margin-top:0">Ajouter un avis</h2>
+ <div class="grid"><div><label for="rvn">Nom</label><input id="rvn"></div><div><label for="rvr">Note</label><select id="rvr"><option value="5">★★★★★</option><option value="4">★★★★☆</option><option value="3">★★★☆☆</option><option value="2">★★☆☆☆</option><option value="1">★☆☆☆☆</option></select></div></div>
+ <label for="rvc">Commentaire</label><input id="rvc" style="margin-bottom:12px">
+ <button class="btn" onclick="addReview()">Publier cet avis</button></div>
+ ${list.length?`<div class="panel scroll"><table><tr><th>Client</th><th>Note</th><th>Commentaire</th><th class="n">Publié</th><th class="n"></th></tr>${list.map(r=>`<tr><td><input value="${esc(r.customer_name)}" onchange="editReview('${r.id}','customer_name',this.value)" style="min-width:110px"></td><td><select onchange="editReview('${r.id}','rating',parseInt(this.value))">${[5,4,3,2,1].map(n=>`<option value="${n}" ${r.rating===n?'selected':''}>${stars(n)}</option>`).join('')}</select></td><td><input value="${esc(r.comment||'')}" onchange="editReview('${r.id}','comment',this.value)" style="min-width:160px"></td><td class="n"><button class="tgsw ${r.approved?'on':''}" onclick="toggleReview('${r.id}',${r.approved})"></button></td><td class="n"><button class="btn ghost" onclick="delReview('${r.id}')">Supprimer</button></td></tr>`).join('')}</table></div>`:'<div class="panel empty">Aucun avis pour le moment.</div>'}`;
 }
+async function addReview(){
+ const name=$('#rvn').value.trim();if(!name){toast('Indiquez un nom');return}
+ const{error}=await sb.from('reviews').insert({customer_name:name,rating:parseInt($('#rvr').value),comment:$('#rvc').value.trim()||null,approved:true});
+ if(error){toast(error.message);return}
+ toast('Avis publié 🎉');await render()
+}
+async function editReview(id,field,val){const{error}=await sb.from('reviews').update({[field]:val}).eq('id',id);if(error)toast(error.message);await render()}
 async function toggleReview(id,cur){await sb.from('reviews').update({approved:!cur}).eq('id',id);await render()}
 async function delReview(id){if(confirm('Supprimer cet avis ?')){await sb.from('reviews').delete().eq('id',id);await render()}}
+
+/* ---------- Paramètres du site (catégories, sous-catégories) ---------- */
+let newCatImg=null;
+function pickCatImg(inp){newCatImg=inp.files[0]||null}
+async function uploadSiteImage(file,path){
+ const{error}=await sb.storage.from('site-images').upload(path,file,{upsert:true,cacheControl:'3600'});
+ if(error){toast('Image non envoyée : '+error.message);return null}
+ return sb.storage.from('site-images').getPublicUrl(path).data.publicUrl;
+}
+async function addCategory(){
+ const name=$('#newcat').value.trim();if(!name){toast('Indiquez un nom de catégorie');return}
+ const{data:c,error}=await sb.from('categories').insert({name}).select().single();
+ if(error){toast(error.message);return}
+ if(newCatImg){const url=await uploadSiteImage(newCatImg,`cat-${c.id}.${(newCatImg.name.split('.').pop()||'jpg').toLowerCase()}`);if(url)await sb.from('categories').update({image_url:url}).eq('id',c.id);newCatImg=null}
+ $('#newcat').value='';toast('Catégorie ajoutée 🎉');await refreshCats()
+}
+async function delCategory(id){if(confirm('Supprimer cette catégorie et ses sous-catégories ?')){await sb.from('categories').delete().eq('id',id);await refreshCats()}}
+async function addSubcategory(catId,inputId){
+ const el=document.getElementById(inputId),name=el.value.trim();if(!name){toast('Indiquez un nom');return}
+ const{error}=await sb.from('subcategories').insert({category_id:catId,name});
+ if(error){toast(error.message);return}
+ el.value='';toast('Sous-catégorie ajoutée');await refreshCats()
+}
+async function delSubcategory(id){await sb.from('subcategories').delete().eq('id',id);await refreshCats()}
+function settings(){
+ return `<h1>Paramètres du site</h1><p class="sub">Gérez les catégories et sous-catégories proposées lors de la création d'un produit, avec une image par catégorie pour le site.</p>
+ <div class="card"><h2 style="margin-top:0">Nouvelle catégorie</h2>
+ <div class="grid"><div><label for="newcat">Nom</label><input id="newcat" placeholder="Ex. Bébé"></div><div><label for="newcatimg">Image (facultatif)</label><input id="newcatimg" type="file" accept="image/*" onchange="pickCatImg(this)"></div></div>
+ <button class="btn" onclick="addCategory()">Ajouter la catégorie</button></div>
+ ${categories.length?categories.map(c=>`<div class="card"><div class="row" style="align-items:center;margin-bottom:10px">${c.image_url?`<img src="${esc(c.image_url)}" alt="" style="width:44px;height:44px;border-radius:10px;object-fit:cover">`:'<span class="th">📦</span>'}<h2 style="margin:0;flex:1">${esc(c.name)}</h2><button class="btn ghost" onclick="delCategory('${c.id}')">Supprimer</button></div>
+ <div class="row">${subcategories.filter(s=>s.category_id===c.id).map(s=>`<span class="pill">${esc(s.name)} <a href="#" onclick="delSubcategory('${s.id}');return false" style="color:var(--bad)">✕</a></span>`).join('')||'<span class="hint">Aucune sous-catégorie</span>'}</div>
+ <div class="row" style="margin-top:10px"><input id="sub_${c.id}" placeholder="Nouvelle sous-catégorie"><button class="btn ghost" onclick="addSubcategory('${c.id}','sub_${c.id}')">Ajouter</button></div></div>`).join(''):'<div class="panel empty">Aucune catégorie pour le moment.</div>'}`;
+}
+
 
 /* ---------- Utilisateurs ---------- */
 async function users(){

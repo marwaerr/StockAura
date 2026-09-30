@@ -63,7 +63,7 @@ header{background:var(--card);position:sticky;top:0;z-index:10;box-shadow:0 1px 
 .slider-wrap{position:relative;display:flex;align-items:center;gap:8px}
 .slider{display:flex;gap:10px;overflow-x:auto;scroll-behavior:smooth;scroll-snap-type:x mandatory;padding:4px 2px;flex:1}
 .slider::-webkit-scrollbar{display:none}
-.slider .chip{all:unset;cursor:pointer;flex:none;scroll-snap-align:start;background:var(--card);border:1px solid var(--line);border-radius:99px;padding:8px 18px;font-size:12px;font-weight:500;white-space:nowrap}
+.slider .chip{all:unset;cursor:pointer;flex:none;scroll-snap-align:start;background:var(--card);border:1px solid var(--line);border-radius:99px;padding:12px 26px;font-size:14.5px;font-weight:600;white-space:nowrap}
 .slider .chip.on,.slider .chip:hover{border-color:var(--pink);color:var(--pink)}
 .slidebtn{all:unset;cursor:pointer;flex:none;width:34px;height:34px;border-radius:50%;background:var(--card);border:1px solid var(--line);display:grid;place-items:center;font-size:15px;color:var(--ink)}
 .slidebtn:hover{border-color:var(--pink);color:var(--pink)}
@@ -71,6 +71,21 @@ header{background:var(--card);position:sticky;top:0;z-index:10;box-shadow:0 1px 
 .prods{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:16px}
 .prod{background:var(--card);border-radius:14px;box-shadow:0 2px 12px rgba(0,0,0,.07);padding:14px;position:relative;display:flex;flex-direction:column}
 .prod .im{height:110px;border-radius:10px;display:grid;place-items:center;font-size:44px;margin-bottom:10px;background:var(--pink-s);overflow:hidden}
+.imbtn{all:unset;cursor:pointer;display:block;width:100%}
+.pmodal{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:40;display:none;align-items:center;justify-content:center;padding:20px;overflow-y:auto}
+.pmodal.open{display:flex}
+.pm-box{background:var(--card);border-radius:18px;max-width:760px;width:100%;display:grid;grid-template-columns:1fr 1fr;gap:0;position:relative;overflow:hidden;max-height:90vh}
+.pm-close{all:unset;cursor:pointer;position:absolute;top:10px;right:14px;font-size:18px;color:var(--ink);background:var(--card);width:32px;height:32px;border-radius:50%;display:grid;place-items:center;z-index:2;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+.pm-img{background:var(--pink-s);display:flex;align-items:center;justify-content:center;min-height:260px}
+.pm-img img{width:100%;height:100%;object-fit:cover}
+.pm-thumbs{position:absolute;left:16px;bottom:16px;display:flex;gap:6px}
+.pm-thumbs button{all:unset;cursor:pointer;width:36px;height:36px;border-radius:8px;overflow:hidden;border:2px solid rgba(255,255,255,.7);opacity:.7}
+.pm-thumbs button.on{opacity:1;border-color:var(--pink)}
+.pm-thumbs img{width:100%;height:100%;object-fit:cover}
+.pm-info{padding:26px;overflow-y:auto}
+.pm-info h2{font-size:19px;margin:6px 0}
+.pm-desc{color:var(--mute);font-size:13px;line-height:1.6;margin:10px 0 16px;white-space:pre-line}
+@media(max-width:640px){.pm-box{grid-template-columns:1fr;max-height:none}.pm-img{min-height:200px}}
 .prod .im img{width:100%;height:100%;object-fit:cover;border-radius:10px}
 .br{font-size:10px;color:var(--teal);font-weight:600;letter-spacing:.5px;text-transform:uppercase}
 .prod h3{font:500 13px/1.4 Poppins;margin:3px 0 8px;flex:1}
@@ -160,6 +175,7 @@ footer a:hover{color:var(--pink)}
 <div><h4>Contact</h4><span>✉ contact@olabebe.ma</span></div></div>
 <div class="cp">© 2026 Ola Bébé. Tous droits réservés.</div></div></footer>
 <div class="overlay" id="ov" onclick="closeCart()"></div>
+<div class="pmodal" id="pmodal" onclick="if(event.target===this)closeProduct()"></div>
 <div class="cartdrawer" id="drawer"></div>
 <div id="toast" role="status"></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
@@ -178,7 +194,7 @@ function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');se
 
 async function boot(){
  const [{data:p,error:e1},{data:pr},{data:rv},{data:ct},{data:br}]=await Promise.all([
-  sb.from('products').select('id,name,price,photo_url,low_threshold,category,brand,is_new,on_sale,sale_price,variants(id,variant,color,quantity)').eq('visible',true).order('created_at'),
+  sb.from('products').select('id,name,price,photo_url,low_threshold,category,brand,is_new,on_sale,sale_price,description,product_images(id,image_url),variants(id,variant,color,quantity)').eq('visible',true).order('created_at'),
   sb.from('promotions').select('*').eq('active',true).order('created_at',{ascending:false}),
   sb.from('reviews').select('*').eq('approved',true).order('created_at',{ascending:false}).limit(12),
   sb.from('categories').select('*').order('sort').order('name'),
@@ -210,7 +226,7 @@ function renderCats(){
 }
 function renderBrands(){
  const b=brands();
- $('#brandwrap').innerHTML=b.length?`<div class="slider-wrap"><button class="slidebtn" aria-label="Précédent" onclick="slideBrands(-1)">‹</button><div class="slider" id="brandslider">${b.map(m=>{const row=brandRows.find(x=>x.name===m);return `<button class="chip ${activeBrand===m?'on':''}" onclick="pickBrand('${esc(m)}')">${row&&row.logo_url?`<img src="${esc(row.logo_url)}" alt="" style="height:16px;vertical-align:-3px;margin-right:6px;border-radius:3px">`:''}${esc(m)}</button>`}).join('')}</div><button class="slidebtn" aria-label="Suivant" onclick="slideBrands(1)">›</button></div>`:'<div class="panel empty">Les marques apparaîtront ici dès que vous en aurez ajouté.</div>';
+ $('#brandwrap').innerHTML=b.length?`<div class="slider-wrap"><button class="slidebtn" aria-label="Précédent" onclick="slideBrands(-1)">‹</button><div class="slider" id="brandslider">${b.map(m=>{const row=brandRows.find(x=>x.name===m);return `<button class="chip ${activeBrand===m?'on':''}" onclick="pickBrand('${esc(m)}')">${row&&row.logo_url?`<img src="${esc(row.logo_url)}" alt="" style="height:22px;vertical-align:-6px;margin-right:8px;border-radius:4px">`:''}${esc(m)}</button>`}).join('')}</div><button class="slidebtn" aria-label="Suivant" onclick="slideBrands(1)">›</button></div>`:'<div class="panel empty">Les marques apparaîtront ici dès que vous en aurez ajouté.</div>';
 }
 function slideBrands(dir){const el=$('#brandslider');if(el)el.scrollBy({left:dir*220,behavior:'smooth'})}
 function stBadge(x){const th=x.p.low_threshold||LOW,st=x.v.quantity<=0?['Rupture','#c0392b']:x.v.quantity<=th?['Stock faible','#c98a1f']:['En stock','#3f9d63'];return `<span class="stb" style="color:${st[1]}">${st[0]}</span>`}
@@ -235,13 +251,37 @@ function priceHTML(p){return p.on_sale&&p.sale_price?`<span class="pr">${dh(p.sa
 function cardHTML(x){
  const inCart=cart[x.v.id]||0;
  return `<div class="prod">${x.p.is_new?'<span class="tag new">Nouveau</span>':(x.p.on_sale?'<span class="tag">Promo</span>':'')}
- <div class="im">${x.p.photo_url?`<img src="${esc(x.p.photo_url)}" alt="${esc(x.p.name)}">`:'📦'}</div>
+ <button class="imbtn" onclick="openProduct('${x.p.id}','${x.v.id}')" aria-label="Voir ${esc(x.p.name)}"><div class="im">${x.p.photo_url?`<img src="${esc(x.p.photo_url)}" alt="${esc(x.p.name)}">`:'📦'}</div></button>
  <span class="br">${esc(x.p.brand||x.p.category||'Ola Bébé')}</span>
- <h3>${esc(x.p.name)}${x.v.variant!=='Standard'?' — '+esc(x.v.variant):''}${x.v.color&&x.v.color!=='Standard'?' '+esc(x.v.color):''}</h3>
+ <h3><a href="#" onclick="openProduct('${x.p.id}','${x.v.id}');return false" style="color:inherit">${esc(x.p.name)}${x.v.variant!=='Standard'?' — '+esc(x.v.variant):''}${x.v.color&&x.v.color!=='Standard'?' '+esc(x.v.color):''}</a></h3>
  <div>${priceHTML(x.p)}${stBadge(x)}</div>
  ${x.v.quantity<=0?'':inCart?`<div class="stepper"><button onclick="changeQty('${x.v.id}',-1)">−</button><b>${inCart}</b><button onclick="changeQty('${x.v.id}',1)">+</button></div>`:`<button class="add" onclick="addToCart('${x.v.id}')">Ajouter au panier</button>`}
  </div>`;
 }
+function openProduct(pid,vid){
+ const p=products.find(x=>x.id===pid);if(!p)return;
+ const v=p.variants.find(x=>x.id===vid)||p.variants[0];
+ const imgs=[p.photo_url,...(p.product_images||[]).map(i=>i.image_url)].filter(Boolean);
+ let active=0;
+ const renderModal=()=>{
+  const inCart=cart[v.id]||0;
+  $('#pmodal').innerHTML=`<div class="pm-box">
+   <button class="pm-close" onclick="closeProduct()">✕</button>
+   <div class="pm-img">${imgs.length?`<img src="${esc(imgs[active])}" alt="${esc(p.name)}">`:'<div class="im" style="height:100%;font-size:60px">📦</div>'}</div>
+   ${imgs.length>1?`<div class="pm-thumbs">${imgs.map((im,i)=>`<button class="${i===active?'on':''}" onclick="event.stopPropagation();window._pmActive(${i})"><img src="${esc(im)}" alt=""></button>`).join('')}</div>`:''}
+   <div class="pm-info">
+    <span class="br">${esc(p.brand||p.category||'Ola Bébé')}</span>
+    <h2>${esc(p.name)}${v.variant!=='Standard'?' — '+esc(v.variant):''}${v.color&&v.color!=='Standard'?' '+esc(v.color):''}</h2>
+    <div style="margin:8px 0">${priceHTML(p)}${stBadge({p,v})}</div>
+    ${p.description?`<p class="pm-desc">${esc(p.description)}</p>`:''}
+    ${v.quantity<=0?'<p class="hint">Rupture de stock</p>':inCart?`<div class="stepper" style="max-width:160px"><button onclick="changeQty('${v.id}',-1);openProduct('${pid}','${vid}')">−</button><b>${inCart}</b><button onclick="changeQty('${v.id}',1);openProduct('${pid}','${vid}')">+</button></div>`:`<button class="add" style="max-width:220px" onclick="addToCart('${v.id}');openProduct('${pid}','${vid}')">Ajouter au panier</button>`}
+   </div></div>`;
+ };
+ window._pmActive=(i)=>{active=i;renderModal()};
+ renderModal();
+ $('#pmodal').classList.add('open');
+}
+function closeProduct(){$('#pmodal').classList.remove('open')}
 function renderReviews(){
  const stars=n=>'★'.repeat(n)+'☆'.repeat(5-n);
  $('#revgrid').innerHTML=reviews.length?`<div class="revs">${reviews.map(r=>`<div class="rev"><div class="stars">${stars(r.rating)}</div><b>${esc(r.customer_name)}</b>${r.comment?`<p>${esc(r.comment)}</p>`:''}</div>`).join('')}</div>`:'<div class="panel empty">Soyez la première personne à laisser un avis !</div>';

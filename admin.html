@@ -578,7 +578,14 @@ async function addCategory(){
  if(newCatImg){const url=await uploadSiteImage(newCatImg,`cat-${c.id}.${(newCatImg.name.split('.').pop()||'jpg').toLowerCase()}`);if(url)await sb.from('categories').update({image_url:url}).eq('id',c.id);newCatImg=null}
  $('#newcat').value='';toast('Catégorie ajoutée 🎉');await refreshCats()
 }
-async function renameCategory(id,name){name=name.trim();if(!name){toast('Le nom ne peut pas être vide');return}const{error}=await sb.from('categories').update({name}).eq('id',id);if(error){toast(error.message);return}await refreshCats()}
+async function renameCategory(id,name){
+ name=name.trim();if(!name){toast('Le nom ne peut pas être vide');return}
+ const old=categories.find(c=>c.id===id);
+ const{error}=await sb.from('categories').update({name}).eq('id',id);
+ if(error){toast(error.message);return}
+ if(old&&old.name!==name)await sb.from('products').update({category:name}).eq('category',old.name);
+ await refreshCats();await refresh()
+}
 async function setCategoryImage(id,inp){const f=inp.files[0];if(!f)return;const url=await uploadSiteImage(f,`cat-${id}.${(f.name.split('.').pop()||'jpg').toLowerCase()}`);if(url){await sb.from('categories').update({image_url:url}).eq('id',id);await refreshCats()}}
 async function delCategory(id){if(confirm('Supprimer cette catégorie et ses sous-catégories ?')){await sb.from('categories').delete().eq('id',id);await refreshCats()}}
 async function addSubcategory(catId,inputId){
@@ -587,7 +594,14 @@ async function addSubcategory(catId,inputId){
  if(error){toast(error.message);return}
  el.value='';toast('Sous-catégorie ajoutée');await refreshCats()
 }
-async function renameSubcategory(id,name){name=name.trim();if(!name){toast('Le nom ne peut pas être vide');return}const{error}=await sb.from('subcategories').update({name}).eq('id',id);if(error){toast(error.message);return}await refreshCats()}
+async function renameSubcategory(id,name){
+ name=name.trim();if(!name){toast('Le nom ne peut pas être vide');return}
+ const old=subcategories.find(s=>s.id===id);
+ const{error}=await sb.from('subcategories').update({name}).eq('id',id);
+ if(error){toast(error.message);return}
+ if(old&&old.name!==name)await sb.from('products').update({subcategory:name}).eq('subcategory',old.name);
+ await refreshCats();await refresh()
+}
 async function delSubcategory(id){await sb.from('subcategories').delete().eq('id',id);await refreshCats()}
 function catTab(){
  return `<div class="card"><h2 style="margin-top:0">Nouvelle catégorie</h2>
@@ -611,7 +625,14 @@ async function addBrand(){
  if(newBrandLogo){const url=await uploadSiteImage(newBrandLogo,`brand-${b.id}.${(newBrandLogo.name.split('.').pop()||'jpg').toLowerCase()}`);if(url)await sb.from('brands').update({logo_url:url}).eq('id',b.id);newBrandLogo=null}
  $('#newbrand').value='';toast('Marque ajoutée 🎉');await refreshCats()
 }
-async function renameBrand(id,name){name=name.trim();if(!name){toast('Le nom ne peut pas être vide');return}const{error}=await sb.from('brands').update({name}).eq('id',id);if(error){toast(error.message);return}await refreshCats()}
+async function renameBrand(id,name){
+ name=name.trim();if(!name){toast('Le nom ne peut pas être vide');return}
+ const old=brands.find(b=>b.id===id);
+ const{error}=await sb.from('brands').update({name}).eq('id',id);
+ if(error){toast(error.message);return}
+ if(old&&old.name!==name)await sb.from('products').update({brand:name}).eq('brand',old.name);
+ await refreshCats();await refresh()
+}
 async function setBrandLogo(id,inp){const f=inp.files[0];if(!f)return;const url=await uploadSiteImage(f,`brand-${id}.${(f.name.split('.').pop()||'jpg').toLowerCase()}`);if(url){await sb.from('brands').update({logo_url:url}).eq('id',id);await refreshCats()}}
 async function delBrand(id){if(confirm('Supprimer cette marque ?')){await sb.from('brands').delete().eq('id',id);await refreshCats()}}
 function brandTab(){

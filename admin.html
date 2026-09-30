@@ -24,7 +24,7 @@ const today=()=>new Date().toISOString().slice(0,10);
 const fd=d=>d?d.split('-').reverse().join('/'):'';
 const LOW=5;
 const ROLE={admin:'Administrateur',vendeur:'Vendeur',magasinier:'Magasinier'};
-const PERM={admin:['menu','home','products','entries','sales','returns','cash','history','profit','promotions','reviews','settings','users'],vendeur:['menu','home','products','sales','returns','cash','history'],magasinier:['menu','home','products','entries','history']};
+const PERM={admin:['menu','home','products','entries','sales','returns','cash','history','profit','site','users'],vendeur:['menu','home','products','sales','returns','cash','history'],magasinier:['menu','home','products','entries','history']};
 let session=null, me=null, products=[], view='menu';
 let lang=localStorage.getItem('sa_lang')||'fr';
 document.documentElement.dir=lang==='ar'?'rtl':'ltr';
@@ -78,7 +78,7 @@ const ic=n=>`<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke=
 
 /* ---------- Nav ---------- */
 function renderNav(){
- const items=[['menu',t('menu'),'home'],['home',t('home'),'trend'],['products',t('products'),'box'],['entries',t('entries'),'in'],['sales',t('sales'),'cart'],['returns',t('returns'),'in'],['cash',t('cash'),'wallet'],['history',t('history'),'list'],['profit',t('profit'),'trend'],['promotions',t('promotions'),'megaphone'],['reviews','Avis','users'],['settings','Paramètres','box'],['users',t('users'),'users']].filter(x=>can(x[0]));
+ const items=[['menu',t('menu'),'home'],['home',t('home'),'trend'],['products',t('products'),'box'],['entries',t('entries'),'in'],['sales',t('sales'),'cart'],['returns',t('returns'),'in'],['cash',t('cash'),'wallet'],['history',t('history'),'list'],['profit',t('profit'),'trend'],['site','Site','megaphone'],['users',t('users'),'users']].filter(x=>can(x[0]));
  $('#nav').innerHTML='<div class="logo">StockAura</div><div class="me"><i>'+esc(displayName(me.name).slice(0,2).toUpperCase())+'</i><b>'+esc(displayName(me.name))+'</b><span>'+ROLE[me.role]+'</span></div>'
  +items.map(([k,l,i])=>`<button data-c="${k}" class="${view===k?'on':''}" onclick="go('${k}')">${ic(i)}${l}</button>`).join('')
  +`<div class="spacer"></div>
@@ -96,10 +96,10 @@ async function loadProducts(){
 const combos=()=>products.flatMap(p=>p.variants.map(v=>({p,v,q:v.quantity})));
 function findByBarcode(code){code=(code||'').trim();if(!code)return null;for(const p of products)for(const v of p.variants)if(v.barcode===code)return{p,v};return null}
 function prodOf(variantId){for(const p of products)for(const v of p.variants)if(v.id===variantId)return{p,v};return null}
-let categories=[],subcategories=[];
+let categories=[],subcategories=[],brands=[];
 async function loadCategories(){
- const[{data:c},{data:s}]=await Promise.all([sb.from('categories').select('*').order('sort').order('name'),sb.from('subcategories').select('*').order('name')]);
- categories=c||[];subcategories=s||[];
+ const[{data:c},{data:s},{data:b}]=await Promise.all([sb.from('categories').select('*').order('sort').order('name'),sb.from('subcategories').select('*').order('name'),sb.from('brands').select('*').order('name')]);
+ categories=c||[];subcategories=s||[];brands=b||[];
 }
 async function refreshCats(){await loadCategories();await render()}
 
@@ -110,7 +110,7 @@ async function render(){
  if(!categories.length)await loadCategories();
  if(!can(view))view='menu';
  renderNav();
- const views={menu,home,products:productsView,entries,sales,returns,cash,history,profit,promotions,reviews,settings,users};
+ const views={menu,home,products:productsView,entries,sales,returns,cash,history,profit,site,users};
  const y=window.scrollY;
  const html=await views[view]();
  $('#main').innerHTML=html;
@@ -120,7 +120,7 @@ async function refresh(){products=await loadProducts();await render()}
 
 /* ---------- Menu ---------- */
 function menu(){
- const items=[['home','Tableau de bord','trend'],['products','Produits','box'],['entries','Entrées','in'],['sales','Ventes','cart'],['returns','Retours','in'],['cash','Caisse','wallet'],['profit','Profit','trend'],['history','Historique','list'],['promotions','Promotions','megaphone'],['reviews','Avis','users'],['settings','Paramètres','box'],['users','Utilisateurs','users']].filter(x=>can(x[0]));
+ const items=[['home','Tableau de bord','trend'],['products','Produits','box'],['entries','Entrées','in'],['sales','Ventes','cart'],['returns','Retours','in'],['cash','Caisse','wallet'],['profit','Profit','trend'],['history','Historique','list'],['site','Site','megaphone'],['users','Utilisateurs','users']].filter(x=>can(x[0]));
  return `<h1>${t('hello')} ${esc(displayName(me.name))} 👋</h1><p class="sub">Que voulez-vous faire ?</p>
  <div class="menu">${items.map(([k,l,i],idx)=>`<button class="mtile c${idx%6}" onclick="go('${k}')">${ic(i)}<span>${l}</span></button>`).join('')}</div>`;
 }
@@ -164,7 +164,7 @@ function cbPreview(){
 function catOptions(sel){return`<select id="pcat" onchange="onCatChange()"><option value="">— Choisir —</option>${categories.map(c=>`<option value="${esc(c.name)}" ${sel===c.name?'selected':''}>${esc(c.name)}</option>`).join('')}</select>`}
 function subOptions(catName){const cat=categories.find(c=>c.name===catName);const subs=cat?subcategories.filter(s=>s.category_id===cat.id):[];return`<select id="psub"><option value="">— Aucune —</option>${subs.map(s=>`<option value="${esc(s.name)}">${esc(s.name)}</option>`).join('')}</select>`}
 function onCatChange(){const sel=$('#pcat').value;$('#subwrap').innerHTML=subOptions(sel)}
-function brandOptions(id){const brands=[...new Set(products.map(p=>p.brand).filter(Boolean))];return`<input list="brandlist" id="${id}" placeholder="Ex. Sophie la Girafe"><datalist id="brandlist">${brands.map(c=>`<option value="${esc(c)}">`).join('')}</datalist>`}
+function brandOptions(id){return`<select id="${id}"><option value="">— Choisir —</option>${brands.map(b=>`<option value="${esc(b.name)}">${esc(b.name)}</option>`).join('')}</select>`}
 let newPhotoFile=null;
 function pickPhotoFile(inp){newPhotoFile=inp.files[0]||null;const r=$('#pphp');if(newPhotoFile){const rd=new FileReader();rd.onload=()=>r.innerHTML=`<img class="th" src="${rd.result}" alt="">`;rd.readAsDataURL(newPhotoFile)}else r.innerHTML=''}
 async function uploadPhoto(file,productId){
@@ -213,12 +213,12 @@ function productsView(){
  return `<h1>${t('products')}</h1><p class="sub">Toutes vos références, avec le stock actuel.</p>
  ${ed?`<div class="card"><h2 style="margin-top:0">${t('add')} un produit</h2>
  <div class="grid"><div><label for="pn">${t('name')} du produit</label><input id="pn"></div>
- <div><label for="pbrand">Marque</label>${brandOptions('pbrand')}</div>
+ <div><label for="pbrand">Marque</label>${brandOptions('pbrand')}${!brands.length?`<p class="hint" style="margin:4px 0 0">Ajoutez vos marques dans <a href="#" onclick="view='site';siteTab='brands';render();return false">Site → Marques</a>.</p>`:''}</div>
  <div><label for="pb">${t('barcode')}</label><input id="pb" placeholder="Si une seule déclinaison"></div>
  <div><label for="pp">${t('price')} de vente (DH)</label><input id="pp" type="number" min="0" step="any"></div>
  ${ad?`<div><label for="pa">Prix d'achat (DH)</label><input id="pa" type="number" min="0" step="any"></div>`:''}</div>
  <div class="grid"><div><label for="pcat">${t('category')}</label>${catOptions()}</div><div><label for="psub">${t('subcategory')} (facultatif)</label><div id="subwrap">${subOptions()}</div></div></div>
- ${!categories.length?`<p class="hint">Aucune catégorie créée pour l'instant — ajoutez-en dans <a href="#" onclick="go('settings');return false">Paramètres</a>.</p>`:''}
+ ${!categories.length?`<p class="hint">Aucune catégorie créée pour l'instant — ajoutez-en dans <a href="#" onclick="view='site';siteTab='categories';render();return false">Site → Catégories</a>.</p>`:''}
  <div class="grid"><div><label for="pv">Tailles / variantes</label><input id="pv" placeholder="S, M, L" oninput="cbPreview()"></div>
  <div><label for="pc">Couleurs</label><input id="pc" placeholder="Noir, Rose, Bleu" oninput="cbPreview()"></div></div>
  <div id="cbx"></div>
@@ -231,7 +231,7 @@ function productsView(){
  <button class="btn" onclick="addProduct()">${t('add')} le produit</button></div>
  ${bulkTable()}`:''}
  <div class="row"><input type="search" placeholder="${t('search')} (nom, catégorie, marque, code-barres)" value="${esc(prodQ)}" oninput="prodQ=this.value;go('products')"></div>
- ${c.length?`<div class="panel scroll"><table><tr><th></th><th>${t('product')}</th><th>Marque</th><th>${t('category')}</th><th>Taille</th><th>Couleur</th><th>${t('barcode')}</th><th class="n">${t('stock')}</th>${ad?'<th class="n">Achat</th>':''}<th class="n">${t('price')}</th>${ed?'<th class="n">Nouveau</th><th class="n">Promo</th><th class="n">Site</th>':''}</tr>${c.map(x=>`<tr><td>${th(x.p)}</td><td><b>${esc(x.p.name)}</b></td><td>${esc(x.p.brand||'—')}</td><td>${esc(x.p.category||'—')}${x.p.subcategory?' · '+esc(x.p.subcategory):''}</td><td>${esc(x.v.variant)}</td><td>${esc(x.v.color)}</td><td>${esc(x.v.barcode||'—')}</td><td class="n">${x.q<=(x.p.low_threshold||LOW)?`<span class="pill ${x.q<=0?'zero':''}">${x.q}</span>`:x.q}</td>${ad?`<td class="n">${dh(x.p.cost)}</td>`:''}<td class="n">${x.p.on_sale&&x.p.sale_price?`<s>${dh(x.p.price)}</s> ${dh(x.p.sale_price)}`:dh(x.p.price)}</td>${ed?`<td class="n"><button class="tgsw ${x.p.is_new?'on':''}" onclick="toggleFlag('${x.p.id}','is_new',${!!x.p.is_new})"></button></td><td class="n"><button class="tgsw ${x.p.on_sale?'on':''}" onclick="toggleFlag('${x.p.id}','on_sale',${!!x.p.on_sale})"></button></td><td class="n"><button class="tgsw ${x.p.visible?'on':''}" onclick="toggleVisible('${x.p.id}',${x.p.visible})"></button></td>`:''}</tr>`).join('')}</table></div>`:'<div class="panel empty">Aucun produit trouvé.</div>'}`;
+ ${c.length?`<div class="panel scroll"><table><tr><th></th><th>${t('product')}</th><th>Marque</th><th>${t('category')}</th><th>Taille</th><th>Couleur</th><th>${t('barcode')}</th><th class="n">${t('stock')}</th>${ad?'<th class="n">Achat</th>':''}<th class="n">${t('price')}</th>${ed?'<th class="n">Nouveau</th><th class="n">Promo</th><th class="n">Site</th>':''}</tr>${c.map(x=>`<tr><td>${th(x.p)}</td><td><b>${esc(x.p.name)}</b></td><td>${esc(x.p.brand||'—')}</td><td>${esc(x.p.category||'—')}${x.p.subcategory?' : '+esc(x.p.subcategory):''}</td><td>${esc(x.v.variant)}</td><td>${esc(x.v.color)}</td><td>${esc(x.v.barcode||'—')}</td><td class="n">${x.q<=(x.p.low_threshold||LOW)?`<span class="pill ${x.q<=0?'zero':''}">${x.q}</span>`:x.q}</td>${ad?`<td class="n">${dh(x.p.cost)}</td>`:''}<td class="n">${x.p.on_sale&&x.p.sale_price?`<s>${dh(x.p.price)}</s> ${dh(x.p.sale_price)}`:dh(x.p.price)}</td>${ed?`<td class="n"><button class="tgsw ${x.p.is_new?'on':''}" onclick="this.classList.toggle('on');toggleFlag('${x.p.id}','is_new',${!!x.p.is_new})"></button></td><td class="n"><button class="tgsw ${x.p.on_sale?'on':''}" onclick="this.classList.toggle('on');toggleFlag('${x.p.id}','on_sale',${!!x.p.on_sale})"></button></td><td class="n"><button class="tgsw ${x.p.visible?'on':''}" onclick="this.classList.toggle('on');toggleVisible('${x.p.id}',${x.p.visible})"></button></td>`:''}</tr>`).join('')}</table></div>`:'<div class="panel empty">Aucun produit trouvé.</div>'}`;
 }
 async function addProduct(){
  const name=$('#pn').value.trim(),price=parseFloat($('#pp').value),category=$('#pcat').value.trim();
@@ -440,17 +440,30 @@ async function profit(){
 /* ---------- Promotions ---------- */
 let newPromoImg=null;
 function pickPromoImg(inp){newPromoImg=inp.files[0]||null}
-async function promotions(){
+let siteTab='promotions';
+function siteNav(){
+ const tabs=[['promotions','Promotions'],['reviews','Avis'],['categories','Catégories'],['brands','Marques']];
+ return `<div class="seg" style="margin-bottom:18px">${tabs.map(([k,l])=>`<button class="${siteTab===k?'on':''}" onclick="siteTab='${k}';render()">${l}</button>`).join('')}</div>`;
+}
+async function site(){
+ let body='';
+ if(siteTab==='promotions')body=await promoTab();
+ else if(siteTab==='reviews')body=await reviewTab();
+ else if(siteTab==='categories')body=catTab();
+ else body=brandTab();
+ return `<h1>Site</h1><p class="sub">Tout ce qui est visible par vos clientes et clients sur le site vitrine.</p>${siteNav()}${body}`;
+}
+async function promoTab(){
  const{data}=await sb.from('promotions').select('*').order('created_at',{ascending:false});
  const list=data||[];
- return `<h1>Promotions</h1><p class="sub">Préparez des bannières : au clic, le visiteur est amené vers la sélection de produits de votre choix.</p>
- <div class="card"><h2 style="margin-top:0">Nouvelle promotion</h2>
+ return `<div class="card"><h2 style="margin-top:0">Nouvelle promotion</h2>
+ <p class="hint" style="margin:0 0 12px">Préparez une bannière : au clic, le visiteur est amené vers la sélection de produits de votre choix.</p>
  <div class="grid"><div><label for="mt">Titre</label><input id="mt" placeholder="Black Friday 🔥"></div><div><label for="md">% de remise (indicatif)</label><input id="md" type="number" min="0" max="100"></div></div>
  <div class="grid"><div><label for="ms">Du</label><input id="ms" type="date"></div><div><label for="me2">Au</label><input id="me2" type="date"></div></div>
  <label for="mdesc">Description</label><input id="mdesc" style="margin-bottom:14px" placeholder="Jusqu'à -30% sur tout le magasin !">
  <div class="grid"><div><label for="mimg">Image de la bannière (facultatif)</label><input id="mimg" type="file" accept="image/*" onchange="pickPromoImg(this)"></div><div><label for="mcat">Emmène vers la catégorie</label><select id="mcat"><option value="">— Toute la boutique —</option>${categories.map(c=>`<option value="${esc(c.name)}">${esc(c.name)}</option>`).join('')}</select></div></div>
  <button class="btn" onclick="addPromo()">Publier</button></div>
- ${list.length?`<div class="panel scroll"><table><tr><th></th><th>Titre</th><th>Cible</th><th>Période</th><th class="n">Actif</th><th class="n"></th></tr>${list.map(m=>`<tr><td>${m.image_url?`<img src="${esc(m.image_url)}" alt="" style="width:44px;height:44px;border-radius:10px;object-fit:cover">`:'<span class="th">🎁</span>'}</td><td>${esc(m.title)}</td><td>${esc(m.target_category||'Toute la boutique')}</td><td>${fd(m.starts_at)||'—'} → ${fd(m.ends_at)||'—'}</td><td class="n"><button class="tgsw ${m.active?'on':''}" onclick="togglePromo('${m.id}',${m.active})"></button></td><td class="n"><button class="btn ghost" onclick="delPromo('${m.id}')">Supprimer</button></td></tr>`).join('')}</table></div>`:'<div class="panel empty">Aucune promotion.</div>'}`;
+ ${list.length?`<div class="panel scroll"><table><tr><th></th><th>Titre</th><th>Cible</th><th>Période</th><th class="n">Actif</th><th class="n"></th></tr>${list.map(m=>`<tr><td>${m.image_url?`<img src="${esc(m.image_url)}" alt="" style="width:44px;height:44px;border-radius:10px;object-fit:cover">`:'<span class="th">🎁</span>'}</td><td>${esc(m.title)}</td><td>${esc(m.target_category||'Toute la boutique')}</td><td>${fd(m.starts_at)||'—'} → ${fd(m.ends_at)||'—'}</td><td class="n"><button class="tgsw ${m.active?'on':''}" onclick="this.classList.toggle('on');togglePromo('${m.id}',${m.active})"></button></td><td class="n"><button class="btn ghost" onclick="delPromo('${m.id}')">Supprimer</button></td></tr>`).join('')}</table></div>`:'<div class="panel empty">Aucune promotion.</div>'}`;
 }
 async function addPromo(){
  const title=$('#mt').value.trim();if(!title){toast('Indiquez un titre');return}
@@ -463,16 +476,15 @@ async function togglePromo(id,cur){const{error}=await sb.from('promotions').upda
 async function delPromo(id){if(confirm('Supprimer cette promotion ?')){await sb.from('promotions').delete().eq('id',id);await render()}}
 
 /* ---------- Avis clients ---------- */
-async function reviews(){
+async function reviewTab(){
  const{data}=await sb.from('reviews').select('*').order('created_at',{ascending:false});
  const list=data||[];
  const stars=n=>'★'.repeat(n)+'☆'.repeat(5-n);
- return `<h1>Avis clients</h1><p class="sub">Ajoutez un avis, ou approuvez/modifiez/supprimez ceux laissés par vos clientes et clients.</p>
- <div class="card"><h2 style="margin-top:0">Ajouter un avis</h2>
+ return `<div class="card"><h2 style="margin-top:0">Ajouter un avis</h2>
  <div class="grid"><div><label for="rvn">Nom</label><input id="rvn"></div><div><label for="rvr">Note</label><select id="rvr"><option value="5">★★★★★</option><option value="4">★★★★☆</option><option value="3">★★★☆☆</option><option value="2">★★☆☆☆</option><option value="1">★☆☆☆☆</option></select></div></div>
  <label for="rvc">Commentaire</label><input id="rvc" style="margin-bottom:12px">
  <button class="btn" onclick="addReview()">Publier cet avis</button></div>
- ${list.length?`<div class="panel scroll"><table><tr><th>Client</th><th>Note</th><th>Commentaire</th><th class="n">Publié</th><th class="n"></th></tr>${list.map(r=>`<tr><td><input value="${esc(r.customer_name)}" onchange="editReview('${r.id}','customer_name',this.value)" style="min-width:110px"></td><td><select onchange="editReview('${r.id}','rating',parseInt(this.value))">${[5,4,3,2,1].map(n=>`<option value="${n}" ${r.rating===n?'selected':''}>${stars(n)}</option>`).join('')}</select></td><td><input value="${esc(r.comment||'')}" onchange="editReview('${r.id}','comment',this.value)" style="min-width:160px"></td><td class="n"><button class="tgsw ${r.approved?'on':''}" onclick="toggleReview('${r.id}',${r.approved})"></button></td><td class="n"><button class="btn ghost" onclick="delReview('${r.id}')">Supprimer</button></td></tr>`).join('')}</table></div>`:'<div class="panel empty">Aucun avis pour le moment.</div>'}`;
+ ${list.length?`<div class="panel scroll"><table><tr><th>Client</th><th>Note</th><th>Commentaire</th><th class="n">Publié</th><th class="n"></th></tr>${list.map(r=>`<tr><td><input value="${esc(r.customer_name)}" onchange="editReview('${r.id}','customer_name',this.value)" style="min-width:110px"></td><td><select onchange="editReview('${r.id}','rating',parseInt(this.value))">${[5,4,3,2,1].map(n=>`<option value="${n}" ${r.rating===n?'selected':''}>${stars(n)}</option>`).join('')}</select></td><td><input value="${esc(r.comment||'')}" onchange="editReview('${r.id}','comment',this.value)" style="min-width:160px"></td><td class="n"><button class="tgsw ${r.approved?'on':''}" onclick="this.classList.toggle('on');toggleReview('${r.id}',${r.approved})"></button></td><td class="n"><button class="btn ghost" onclick="delReview('${r.id}')">Supprimer</button></td></tr>`).join('')}</table></div>`:'<div class="panel empty">Aucun avis pour le moment.</div>'}`;
 }
 async function addReview(){
  const name=$('#rvn').value.trim();if(!name){toast('Indiquez un nom');return}
@@ -484,7 +496,7 @@ async function editReview(id,field,val){const{error}=await sb.from('reviews').up
 async function toggleReview(id,cur){const{error}=await sb.from('reviews').update({approved:!cur}).eq('id',id);if(error){toast(error.message);return}await render()}
 async function delReview(id){if(confirm('Supprimer cet avis ?')){await sb.from('reviews').delete().eq('id',id);await render()}}
 
-/* ---------- Paramètres du site (catégories, sous-catégories) ---------- */
+/* ---------- Catégories et sous-catégories ---------- */
 let newCatImg=null;
 function pickCatImg(inp){newCatImg=inp.files[0]||null}
 async function uploadSiteImage(file,path){
@@ -499,6 +511,8 @@ async function addCategory(){
  if(newCatImg){const url=await uploadSiteImage(newCatImg,`cat-${c.id}.${(newCatImg.name.split('.').pop()||'jpg').toLowerCase()}`);if(url)await sb.from('categories').update({image_url:url}).eq('id',c.id);newCatImg=null}
  $('#newcat').value='';toast('Catégorie ajoutée 🎉');await refreshCats()
 }
+async function renameCategory(id,name){name=name.trim();if(!name){toast('Le nom ne peut pas être vide');return}const{error}=await sb.from('categories').update({name}).eq('id',id);if(error){toast(error.message);return}await refreshCats()}
+async function setCategoryImage(id,inp){const f=inp.files[0];if(!f)return;const url=await uploadSiteImage(f,`cat-${id}.${(f.name.split('.').pop()||'jpg').toLowerCase()}`);if(url){await sb.from('categories').update({image_url:url}).eq('id',id);await refreshCats()}}
 async function delCategory(id){if(confirm('Supprimer cette catégorie et ses sous-catégories ?')){await sb.from('categories').delete().eq('id',id);await refreshCats()}}
 async function addSubcategory(catId,inputId){
  const el=document.getElementById(inputId),name=el.value.trim();if(!name){toast('Indiquez un nom');return}
@@ -506,15 +520,38 @@ async function addSubcategory(catId,inputId){
  if(error){toast(error.message);return}
  el.value='';toast('Sous-catégorie ajoutée');await refreshCats()
 }
+async function renameSubcategory(id,name){name=name.trim();if(!name){toast('Le nom ne peut pas être vide');return}const{error}=await sb.from('subcategories').update({name}).eq('id',id);if(error){toast(error.message);return}await refreshCats()}
 async function delSubcategory(id){await sb.from('subcategories').delete().eq('id',id);await refreshCats()}
-function settings(){
- return `<h1>Paramètres du site</h1><p class="sub">Gérez les catégories et sous-catégories proposées lors de la création d'un produit, avec une image par catégorie pour le site.</p>
- <div class="card"><h2 style="margin-top:0">Nouvelle catégorie</h2>
+function catTab(){
+ return `<div class="card"><h2 style="margin-top:0">Nouvelle catégorie</h2>
  <div class="grid"><div><label for="newcat">Nom</label><input id="newcat" placeholder="Ex. Bébé"></div><div><label for="newcatimg">Image (facultatif)</label><input id="newcatimg" type="file" accept="image/*" onchange="pickCatImg(this)"></div></div>
  <button class="btn" onclick="addCategory()">Ajouter la catégorie</button></div>
- ${categories.length?categories.map(c=>`<div class="card"><div class="row" style="align-items:center;margin-bottom:10px">${c.image_url?`<img src="${esc(c.image_url)}" alt="" style="width:44px;height:44px;border-radius:10px;object-fit:cover">`:'<span class="th">📦</span>'}<h2 style="margin:0;flex:1">${esc(c.name)}</h2><button class="btn ghost" onclick="delCategory('${c.id}')">Supprimer</button></div>
- <div class="row">${subcategories.filter(s=>s.category_id===c.id).map(s=>`<span class="pill">${esc(s.name)} <a href="#" onclick="delSubcategory('${s.id}');return false" style="color:var(--bad)">✕</a></span>`).join('')||'<span class="hint">Aucune sous-catégorie</span>'}</div>
+ ${categories.length?categories.map(c=>`<div class="card"><div class="row" style="align-items:center;margin-bottom:10px">
+ <label class="thl" title="Changer la photo">${c.image_url?`<img src="${esc(c.image_url)}" alt="" style="width:44px;height:44px;border-radius:10px;object-fit:cover">`:'<span class="th">📦</span>'}<input type="file" accept="image/*" hidden onchange="setCategoryImage('${c.id}',this)"></label>
+ <input value="${esc(c.name)}" onchange="renameCategory('${c.id}',this.value)" style="flex:1;font-weight:800;min-width:120px">
+ <button class="btn ghost" onclick="delCategory('${c.id}')">Supprimer</button></div>
+ <div class="row">${subcategories.filter(s=>s.category_id===c.id).map(s=>`<span class="pill" style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px"><input value="${esc(s.name)}" onchange="renameSubcategory('${s.id}',this.value)" style="border:0;background:transparent;padding:0;min-height:auto;width:${Math.max(6,s.name.length)}ch;color:inherit;font:inherit"><a href="#" onclick="delSubcategory('${s.id}');return false" style="color:var(--bad)">✕</a></span>`).join('')||'<span class="hint">Aucune sous-catégorie</span>'}</div>
  <div class="row" style="margin-top:10px"><input id="sub_${c.id}" placeholder="Nouvelle sous-catégorie"><button class="btn ghost" onclick="addSubcategory('${c.id}','sub_${c.id}')">Ajouter</button></div></div>`).join(''):'<div class="panel empty">Aucune catégorie pour le moment.</div>'}`;
+}
+
+/* ---------- Marques ---------- */
+let newBrandLogo=null;
+function pickBrandLogo(inp){newBrandLogo=inp.files[0]||null}
+async function addBrand(){
+ const name=$('#newbrand').value.trim();if(!name){toast('Indiquez un nom de marque');return}
+ const{data:b,error}=await sb.from('brands').insert({name}).select().single();
+ if(error){toast(error.message);return}
+ if(newBrandLogo){const url=await uploadSiteImage(newBrandLogo,`brand-${b.id}.${(newBrandLogo.name.split('.').pop()||'jpg').toLowerCase()}`);if(url)await sb.from('brands').update({logo_url:url}).eq('id',b.id);newBrandLogo=null}
+ $('#newbrand').value='';toast('Marque ajoutée 🎉');await refreshCats()
+}
+async function renameBrand(id,name){name=name.trim();if(!name){toast('Le nom ne peut pas être vide');return}const{error}=await sb.from('brands').update({name}).eq('id',id);if(error){toast(error.message);return}await refreshCats()}
+async function setBrandLogo(id,inp){const f=inp.files[0];if(!f)return;const url=await uploadSiteImage(f,`brand-${id}.${(f.name.split('.').pop()||'jpg').toLowerCase()}`);if(url){await sb.from('brands').update({logo_url:url}).eq('id',id);await refreshCats()}}
+async function delBrand(id){if(confirm('Supprimer cette marque ?')){await sb.from('brands').delete().eq('id',id);await refreshCats()}}
+function brandTab(){
+ return `<div class="card"><h2 style="margin-top:0">Nouvelle marque</h2>
+ <div class="grid"><div><label for="newbrand">Nom</label><input id="newbrand" placeholder="Ex. Sophie la Girafe"></div><div><label for="newbrandimg">Logo (facultatif)</label><input id="newbrandimg" type="file" accept="image/*" onchange="pickBrandLogo(this)"></div></div>
+ <button class="btn" onclick="addBrand()">Ajouter la marque</button></div>
+ ${brands.length?`<div class="panel scroll"><table><tr><th></th><th>Nom</th><th class="n"></th></tr>${brands.map(b=>`<tr><td><label class="thl" title="Changer le logo">${b.logo_url?`<img src="${esc(b.logo_url)}" alt="" style="width:36px;height:36px;border-radius:8px;object-fit:cover">`:'<span class="th">🏷️</span>'}<input type="file" accept="image/*" hidden onchange="setBrandLogo('${b.id}',this)"></label></td><td><input value="${esc(b.name)}" onchange="renameBrand('${b.id}',this.value)"></td><td class="n"><button class="btn ghost" onclick="delBrand('${b.id}')">Supprimer</button></td></tr>`).join('')}</table></div>`:'<div class="panel empty">Aucune marque pour le moment.</div>'}`;
 }
 
 

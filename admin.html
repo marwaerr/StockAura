@@ -438,21 +438,25 @@ async function profit(){
 }
 
 /* ---------- Promotions ---------- */
+let newPromoImg=null;
+function pickPromoImg(inp){newPromoImg=inp.files[0]||null}
 async function promotions(){
  const{data}=await sb.from('promotions').select('*').order('created_at',{ascending:false});
  const list=data||[];
- return `<h1>Promotions</h1><p class="sub">Vos annonces et opérations (Black Friday, soldes…) affichées sur le site vitrine.</p>
+ return `<h1>Promotions</h1><p class="sub">Préparez des bannières : au clic, le visiteur est amené vers la sélection de produits de votre choix.</p>
  <div class="card"><h2 style="margin-top:0">Nouvelle promotion</h2>
  <div class="grid"><div><label for="mt">Titre</label><input id="mt" placeholder="Black Friday 🔥"></div><div><label for="md">% de remise (indicatif)</label><input id="md" type="number" min="0" max="100"></div></div>
  <div class="grid"><div><label for="ms">Du</label><input id="ms" type="date"></div><div><label for="me2">Au</label><input id="me2" type="date"></div></div>
  <label for="mdesc">Description</label><input id="mdesc" style="margin-bottom:14px" placeholder="Jusqu'à -30% sur tout le magasin !">
+ <div class="grid"><div><label for="mimg">Image de la bannière (facultatif)</label><input id="mimg" type="file" accept="image/*" onchange="pickPromoImg(this)"></div><div><label for="mcat">Emmène vers la catégorie</label><select id="mcat"><option value="">— Toute la boutique —</option>${categories.map(c=>`<option value="${esc(c.name)}">${esc(c.name)}</option>`).join('')}</select></div></div>
  <button class="btn" onclick="addPromo()">Publier</button></div>
- ${list.length?`<div class="panel scroll"><table><tr><th>Titre</th><th>Période</th><th class="n">Actif</th><th class="n"></th></tr>${list.map(m=>`<tr><td>${esc(m.title)}</td><td>${fd(m.starts_at)||'—'} → ${fd(m.ends_at)||'—'}</td><td class="n"><button class="tgsw ${m.active?'on':''}" onclick="togglePromo('${m.id}',${m.active})"></button></td><td class="n"><button class="btn ghost" onclick="delPromo('${m.id}')">Supprimer</button></td></tr>`).join('')}</table></div>`:'<div class="panel empty">Aucune promotion.</div>'}`;
+ ${list.length?`<div class="panel scroll"><table><tr><th></th><th>Titre</th><th>Cible</th><th>Période</th><th class="n">Actif</th><th class="n"></th></tr>${list.map(m=>`<tr><td>${m.image_url?`<img src="${esc(m.image_url)}" alt="" style="width:44px;height:44px;border-radius:10px;object-fit:cover">`:'<span class="th">🎁</span>'}</td><td>${esc(m.title)}</td><td>${esc(m.target_category||'Toute la boutique')}</td><td>${fd(m.starts_at)||'—'} → ${fd(m.ends_at)||'—'}</td><td class="n"><button class="tgsw ${m.active?'on':''}" onclick="togglePromo('${m.id}',${m.active})"></button></td><td class="n"><button class="btn ghost" onclick="delPromo('${m.id}')">Supprimer</button></td></tr>`).join('')}</table></div>`:'<div class="panel empty">Aucune promotion.</div>'}`;
 }
 async function addPromo(){
  const title=$('#mt').value.trim();if(!title){toast('Indiquez un titre');return}
- const{error}=await sb.from('promotions').insert({title,description:$('#mdesc').value.trim()||null,discount_pct:parseFloat($('#md').value)||null,starts_at:$('#ms').value||null,ends_at:$('#me2').value||null,active:true});
+ const{data:p,error}=await sb.from('promotions').insert({title,description:$('#mdesc').value.trim()||null,discount_pct:parseFloat($('#md').value)||null,starts_at:$('#ms').value||null,ends_at:$('#me2').value||null,target_category:$('#mcat').value||null,active:true}).select().single();
  if(error){toast(error.message);return}
+ if(newPromoImg){const url=await uploadSiteImage(newPromoImg,`promo-${p.id}.${(newPromoImg.name.split('.').pop()||'jpg').toLowerCase()}`);if(url)await sb.from('promotions').update({image_url:url}).eq('id',p.id);newPromoImg=null}
  toast('Promotion publiée 🎉');await render()
 }
 async function togglePromo(id,cur){const{error}=await sb.from('promotions').update({active:!cur}).eq('id',id);if(error){toast(error.message);return}await render()}

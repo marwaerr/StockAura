@@ -37,7 +37,7 @@ const t=k=>TR[lang][k]||TR.fr[k]||k;
 function setLang(l){lang=l;localStorage.setItem('sa_lang',l);document.documentElement.dir=l==='ar'?'rtl':'ltr';render()}
 function toggleTheme(){const r=document.documentElement,d=r.dataset.theme==='dark';r.dataset.theme=d?'light':'dark';localStorage.setItem('sa_theme',d?'light':'dark')}
 const displayName=n=>n&&n.includes('@')?n.split('@')[0]:n;
-let hist={type:'all',q:''}, entryLines=[{}], cart=[], saleMeta={disc:'pct',discVal:'',payment:'cash',given:''}, lastReceipt=null, ret={}, cm={amount:'',note:''}, prodQ='';
+let hist={type:'all',q:''}, entryLines=[{}], cart=[{}], saleMeta={disc:'pct',discVal:'',payment:'cash',given:''}, lastReceipt=null, ret={}, cm={amount:'',note:''}, prodQ='';
 
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2400)}
 function can(v){return me&&PERM[me.role]?.includes(v)}
@@ -89,14 +89,14 @@ async function go(v){view=v;await render()}
 
 /* ---------- Data ---------- */
 async function loadProducts(){
- const{data,error}=await sb.from('products').select('id,name,price,cost,photo_url,visible,low_threshold,category,subcategory,variants(id,variant,color,barcode,quantity)').order('created_at');
+ const{data,error}=await sb.from('products').select('id,name,price,cost,photo_url,visible,low_threshold,category,subcategory,brand,is_new,on_sale,sale_price,description,product_images(id,image_url),variants(id,variant,color,barcode,quantity)').order('created_at');
  if(error){toast(error.message);return[]}
  return data||[];
 }
 const combos=()=>products.flatMap(p=>p.variants.map(v=>({p,v,q:v.quantity})));
 function findByBarcode(code){code=(code||'').trim();if(!code)return null;for(const p of products)for(const v of p.variants)if(v.barcode===code)return{p,v};return null}
 function prodOf(variantId){for(const p of products)for(const v of p.variants)if(v.id===variantId)return{p,v};return null}
-let categories=[],subcategories=[],brands=[];
+let categories=[],subcategories=[],brands=[],editingId=null;
 async function loadCategories(){
  const[{data:c},{data:s},{data:b}]=await Promise.all([sb.from('categories').select('*').order('sort').order('name'),sb.from('subcategories').select('*').order('name'),sb.from('brands').select('*').order('name')]);
  categories=c||[];subcategories=s||[];brands=b||[];
@@ -112,9 +112,14 @@ async function render(){
  renderNav();
  const views={menu,home,products:productsView,entries,sales,returns,cash,history,profit,site,users};
  const y=window.scrollY;
+ const ae=document.activeElement;
+ const keepId=ae&&ae.id?ae.id:null;
+ const selStart=keepId&&ae.selectionStart!=null?ae.selectionStart:null;
+ const selEnd=keepId&&ae.selectionEnd!=null?ae.selectionEnd:null;
  const html=await views[view]();
  $('#main').innerHTML=html;
  window.scrollTo(0,y);
+ if(keepId){const el=document.getElementById(keepId);if(el){el.focus();if(selStart!=null){try{el.setSelectionRange(selStart,selEnd)}catch(e){}}}}
 }
 async function refresh(){products=await loadProducts();await render()}
 
@@ -151,7 +156,8 @@ async function home(){
 const MLBL={in:'Entrée',out:'Vente',return:'Retour'};
 function moveTable(a){
  if(!a.length)return '<div class="panel empty">Aucun mouvement pour le moment.</div>';
- return `<div class="panel scroll"><table><tr><th>Date</th><th>Type</th><th>Produit</th><th class="n">Qté</th></tr>${a.map(x=>{const p=prodOf(x.variants?.product_id)||prodOf(x.variant_id);return `<tr><td>${fd(x.date)}</td><td>${MLBL[x.type]||x.type}</td><td>${esc(p?.p?.name||'(supprimé)')} · ${esc(x.variants?.variant||'')} · ${esc(x.variants?.color||'')}</td><td class="n ${x.type==='out'?'out':'in'}">${x.type==='out'?'-':'+'}${x.qty}</td></tr>`}).join('')}</table></div>`;
+ const showAmt=isAdmin();
+ return `<div class="panel scroll"><table><tr><th>Date</th><th>Type</th><th>Produit</th><th class="n">Qté</th>${showAmt?'<th class="n">Montant</th>':''}</tr>${a.map(x=>{const p=prodOf(x.variants?.product_id)||prodOf(x.variant_id);return `<tr><td>${fd(x.date)}</td><td>${MLBL[x.type]||x.type}</td><td>${esc(p?.p?.name||'(supprimé)')} · ${esc(x.variants?.variant||'')} · ${esc(x.variants?.color||'')}</td><td class="n ${x.type==='out'?'out':'in'}">${x.type==='out'?'-':'+'}${x.qty}</td>${showAmt?`<td class="n">${dh(x.qty*x.unit_price)}</td>`:''}</tr>`}).join('')}</table></div>`;
 }
 
 /* ---------- Produits ---------- */
@@ -210,6 +216,7 @@ async function saveBulk(){
 function productsView(){
  const q=prodQ.toLowerCase(),ed=me.role!=='vendeur',ad=isAdmin();
  const c=combos().filter(x=>(x.p.name+x.v.variant+x.v.color+(x.v.barcode||'')+(x.p.category||'')+(x.p.brand||'')).toLowerCase().includes(q));
+ const seen=new Set();
  return `<h1>${t('products')}</h1><p class="sub">Toutes vos références, avec le stock actuel.</p>
  ${ed?`<div class="card"><h2 style="margin-top:0">${t('add')} un produit</h2>
  <div class="grid"><div><label for="pn">${t('name')} du produit</label><input id="pn"></div>
@@ -222,7 +229,8 @@ function productsView(){
  <div class="grid"><div><label for="pv">Tailles / variantes</label><input id="pv" placeholder="S, M, L" oninput="cbPreview()"></div>
  <div><label for="pc">Couleurs</label><input id="pc" placeholder="Noir, Rose, Bleu" oninput="cbPreview()"></div></div>
  <div id="cbx"></div>
- <div class="grid"><div><label for="pphoto">${t('photo')} (facultatif)</label><input id="pphoto" type="file" accept="image/*" onchange="pickPhotoFile(this)"></div><div><label for="pth">Seuil stock faible</label><input id="pth" type="number" min="0" placeholder="${LOW}"></div></div>
+ <label for="pdesc">Description (facultatif)</label><textarea id="pdesc" rows="3" style="width:100%;font:inherit;border:1px solid var(--line);border-radius:8px;padding:9px 11px;margin-bottom:12px"></textarea>
+ <div class="grid"><div><label for="pphoto">${t('photo')} principale (facultatif)</label><input id="pphoto" type="file" accept="image/*" onchange="pickPhotoFile(this)"></div><div><label for="pth">Seuil stock faible</label><input id="pth" type="number" min="0" placeholder="${LOW}"></div></div>
  <div id="pphp" style="margin-bottom:10px"></div>
  <label style="display:flex;gap:8px;align-items:center;font-weight:400;margin:0 0 10px"><input type="checkbox" id="pvis" checked style="width:auto;min-height:auto">Afficher sur le site vitrine</label>
  <label style="display:flex;gap:8px;align-items:center;font-weight:400;margin:0 0 10px"><input type="checkbox" id="pnew" style="width:auto;min-height:auto">Marquer comme nouveauté</label>
@@ -231,14 +239,60 @@ function productsView(){
  <button class="btn" onclick="addProduct()">${t('add')} le produit</button></div>
  ${bulkTable()}`:''}
  <div class="row"><input type="search" placeholder="${t('search')} (nom, catégorie, marque, code-barres)" value="${esc(prodQ)}" oninput="prodQ=this.value;go('products')"></div>
- ${c.length?`<div class="panel scroll"><table><tr><th></th><th>${t('product')}</th><th>Marque</th><th>${t('category')}</th><th>Taille</th><th>Couleur</th><th>${t('barcode')}</th><th class="n">${t('stock')}</th>${ad?'<th class="n">Achat</th>':''}<th class="n">${t('price')}</th>${ed?'<th class="n">Nouveau</th><th class="n">Promo</th><th class="n">Site</th>':''}</tr>${c.map(x=>`<tr><td>${th(x.p)}</td><td><b>${esc(x.p.name)}</b></td><td>${esc(x.p.brand||'—')}</td><td>${esc(x.p.category||'—')}${x.p.subcategory?' : '+esc(x.p.subcategory):''}</td><td>${esc(x.v.variant)}</td><td>${esc(x.v.color)}</td><td>${esc(x.v.barcode||'—')}</td><td class="n">${x.q<=(x.p.low_threshold||LOW)?`<span class="pill ${x.q<=0?'zero':''}">${x.q}</span>`:x.q}</td>${ad?`<td class="n">${dh(x.p.cost)}</td>`:''}<td class="n">${x.p.on_sale&&x.p.sale_price?`<s>${dh(x.p.price)}</s> ${dh(x.p.sale_price)}`:dh(x.p.price)}</td>${ed?`<td class="n"><button class="tgsw ${x.p.is_new?'on':''}" onclick="this.classList.toggle('on');toggleFlag('${x.p.id}','is_new',${!!x.p.is_new})"></button></td><td class="n"><button class="tgsw ${x.p.on_sale?'on':''}" onclick="this.classList.toggle('on');toggleFlag('${x.p.id}','on_sale',${!!x.p.on_sale})"></button></td><td class="n"><button class="tgsw ${x.p.visible?'on':''}" onclick="this.classList.toggle('on');toggleVisible('${x.p.id}',${x.p.visible})"></button></td>`:''}</tr>`).join('')}</table></div>`:'<div class="panel empty">Aucun produit trouvé.</div>'}`;
+ ${c.length?`<div class="panel scroll"><table><tr><th></th><th>${t('product')}</th><th>Marque</th><th>${t('category')}</th><th>Taille</th><th>Couleur</th><th>${t('barcode')}</th><th class="n">${t('stock')}</th>${ad?'<th class="n">Achat</th>':''}<th class="n">${t('price')}</th>${ed?'<th class="n">Nouveau</th><th class="n">Promo</th><th class="n">Site</th><th class="n"></th>':''}</tr>${c.map(x=>{const first=!seen.has(x.p.id);seen.add(x.p.id);return `<tr><td>${th(x.p)}</td><td><b>${esc(x.p.name)}</b></td><td>${esc(x.p.brand||'—')}</td><td>${esc(x.p.category||'—')}${x.p.subcategory?' : '+esc(x.p.subcategory):''}</td><td>${esc(x.v.variant)}</td><td>${esc(x.v.color)}</td><td>${esc(x.v.barcode||'—')}</td><td class="n">${x.q<=(x.p.low_threshold||LOW)?`<span class="pill ${x.q<=0?'zero':''}">${x.q}</span>`:x.q}</td>${ad?`<td class="n">${dh(x.p.cost)}</td>`:''}<td class="n">${x.p.on_sale&&x.p.sale_price?`<s>${dh(x.p.price)}</s> ${dh(x.p.sale_price)}`:dh(x.p.price)}</td>${ed?`<td class="n"><button class="tgsw ${x.p.is_new?'on':''}" onclick="this.classList.toggle('on');toggleFlag('${x.p.id}','is_new',${!!x.p.is_new})"></button></td><td class="n"><button class="tgsw ${x.p.on_sale?'on':''}" onclick="this.classList.toggle('on');toggleFlag('${x.p.id}','on_sale',${!!x.p.on_sale})"></button></td><td class="n"><button class="tgsw ${x.p.visible?'on':''}" onclick="this.classList.toggle('on');toggleVisible('${x.p.id}',${x.p.visible})"></button></td><td class="n">${first?`<button class="btn ghost" onclick="editProduct('${x.p.id}')">Modifier</button>`:''}</td>`:''}</tr>`}).join('')}</table></div>`:'<div class="panel empty">Aucun produit trouvé.</div>'}
+ ${ed&&editingId?editForm(editingId):''}`;
 }
+function editProduct(id){editingId=editingId===id?null:id;render(true)}
+function editSubOptions(catName,sel){const cat=categories.find(c=>c.name===catName);const subs=cat?subcategories.filter(s=>s.category_id===cat.id):[];return`<select id="esub"><option value="">— Aucune —</option>${subs.map(s=>`<option value="${esc(s.name)}" ${sel===s.name?'selected':''}>${esc(s.name)}</option>`).join('')}</select>`}
+function onEditCatChange(){$('#esubwrap').innerHTML=editSubOptions($('#ecat').value,'')}
+function editForm(id){
+ const p=products.find(x=>x.id===id);if(!p)return'';
+ return `<div class="card"><h2 style="margin-top:0">Modifier « ${esc(p.name)} »</h2>
+ <div class="grid"><div><label for="ename">Nom</label><input id="ename" value="${esc(p.name)}"></div><div><label for="ebrand">Marque</label><select id="ebrand"><option value="">— Choisir —</option>${brands.map(b=>`<option value="${esc(b.name)}" ${p.brand===b.name?'selected':''}>${esc(b.name)}</option>`).join('')}</select></div></div>
+ <div class="grid"><div><label for="eprice">Prix de vente (DH)</label><input id="eprice" type="number" min="0" step="any" value="${p.price}"></div>${isAdmin()?`<div><label for="ecost">Prix d'achat (DH)</label><input id="ecost" type="number" min="0" step="any" value="${p.cost||0}"></div>`:''}</div>
+ <div class="grid"><div><label for="ecat">Catégorie</label><select id="ecat" onchange="onEditCatChange()">${categories.map(c=>`<option value="${esc(c.name)}" ${p.category===c.name?'selected':''}>${esc(c.name)}</option>`).join('')}</select></div><div><label for="esub">Sous-catégorie</label><div id="esubwrap">${editSubOptions(p.category,p.subcategory)}</div></div></div>
+ <label for="edesc">Description</label><textarea id="edesc" rows="3" style="width:100%;font:inherit;border:1px solid var(--line);border-radius:8px;padding:9px 11px;margin-bottom:12px">${esc(p.description||'')}</textarea>
+ <div class="grid"><div><label for="ethresh">Seuil stock faible</label><input id="ethresh" type="number" min="0" value="${p.low_threshold||''}"></div><div><label for="ephoto">Photo principale (remplacer, facultatif)</label><input id="ephoto" type="file" accept="image/*"></div></div>
+ <label style="display:flex;gap:8px;align-items:center;font-weight:400;margin:10px 0"><input type="checkbox" id="evis" ${p.visible?'checked':''} style="width:auto">Afficher sur le site</label>
+ <label style="display:flex;gap:8px;align-items:center;font-weight:400;margin:0 0 10px"><input type="checkbox" id="enew" ${p.is_new?'checked':''} style="width:auto">Nouveauté</label>
+ <label style="display:flex;gap:8px;align-items:center;font-weight:400;margin:0 0 10px"><input type="checkbox" id="esale" ${p.on_sale?'checked':''} style="width:auto" onchange="$('#esalep').style.display=this.checked?'block':'none'">En promotion</label>
+ <div id="esalep" style="display:${p.on_sale?'block':'none'};margin-bottom:12px"><label for="esalepv">Prix promo</label><input id="esalepv" type="number" min="0" step="any" value="${p.sale_price||''}"></div>
+ <h3 style="margin:16px 0 8px">Galerie de photos (visible sur la fiche produit du site)</h3>
+ <div class="row">${(p.product_images||[]).map(im=>`<span style="position:relative;display:inline-block"><img src="${esc(im.image_url)}" style="width:64px;height:64px;object-fit:cover;border-radius:8px"><a href="#" onclick="delProductImage('${im.id}','${id}');return false" style="position:absolute;top:-6px;right:-6px;background:var(--bad);color:#fff;border-radius:50%;width:18px;height:18px;display:grid;place-items:center;font-size:11px;text-decoration:none">✕</a></span>`).join('')||'<span class="hint">Aucune photo supplémentaire</span>'}</div>
+ <div class="row" style="margin-top:10px"><input id="egallery" type="file" accept="image/*" multiple><button class="btn ghost" onclick="addGalleryImages('${id}')">Ajouter ces photos</button></div>
+ <div class="row" style="margin-top:16px"><button class="btn" onclick="saveEdit('${id}')">Enregistrer les modifications</button><button class="btn ghost" onclick="editingId=null;render(true)">Annuler</button></div></div>`;
+}
+async function saveEdit(id){
+ const name=$('#ename').value.trim(),price=parseFloat($('#eprice').value);
+ if(!name||isNaN(price)){toast('Nom et prix requis');return}
+ const onSale=$('#esale').checked;
+ const patch={name,price,category:$('#ecat').value,subcategory:$('#esub').value||null,brand:$('#ebrand').value||null,description:$('#edesc').value.trim()||null,low_threshold:parseInt($('#ethresh').value)||null,visible:$('#evis').checked,is_new:$('#enew').checked,on_sale:onSale,sale_price:onSale?(parseFloat($('#esalepv').value)||null):null};
+ if(isAdmin())patch.cost=parseFloat($('#ecost').value)||0;
+ const{error}=await sb.from('products').update(patch).eq('id',id);
+ if(error){toast(error.message);return}
+ const f=$('#ephoto').files[0];
+ if(f){const url=await uploadPhoto(f,id);if(url)await sb.from('products').update({photo_url:url}).eq('id',id)}
+ editingId=null;toast('Produit mis à jour 🎉');await refresh()
+}
+async function uploadGalleryPhoto(file,productId){
+ const ext=(file.name.split('.').pop()||'jpg').toLowerCase(),path=`${productId}/${Date.now()}-${Math.random().toString(36).slice(2,7)}.${ext}`;
+ const{error}=await sb.storage.from('product-photos').upload(path,file,{upsert:true,cacheControl:'3600'});
+ if(error){toast('Photo non envoyée : '+error.message);return null}
+ return sb.storage.from('product-photos').getPublicUrl(path).data.publicUrl;
+}
+async function addGalleryImages(id){
+ const files=[...($('#egallery').files||[])];
+ if(!files.length){toast('Choisissez au moins une photo');return}
+ for(const f of files){const url=await uploadGalleryPhoto(f,id);if(url)await sb.from('product_images').insert({product_id:id,image_url:url})}
+ toast('Photos ajoutées 🎉');await refresh()
+}
+async function delProductImage(imgId){await sb.from('product_images').delete().eq('id',imgId);await refresh()}
 async function addProduct(){
  const name=$('#pn').value.trim(),price=parseFloat($('#pp').value),category=$('#pcat').value.trim();
  if(!name||isNaN(price)){toast('Indiquez un nom et un prix');return}
  if(!category){toast('Indiquez une catégorie');return}
  const onSale=$('#psale').checked,salePrice=onSale?(parseFloat($('#pspv').value)||null):null;
- const{data:p,error}=await sb.from('products').insert({name,price,cost:isAdmin()?(parseFloat($('#pa').value)||0):0,category,subcategory:$('#psub').value.trim()||null,brand:$('#pbrand').value.trim()||null,is_new:$('#pnew').checked,on_sale:onSale,sale_price:salePrice,visible:$('#pvis').checked,low_threshold:parseInt($('#pth').value)||null}).select().single();
+ const{data:p,error}=await sb.from('products').insert({name,price,cost:isAdmin()?(parseFloat($('#pa').value)||0):0,category,subcategory:$('#psub').value.trim()||null,brand:$('#pbrand').value.trim()||null,description:$('#pdesc').value.trim()||null,is_new:$('#pnew').checked,on_sale:onSale,sale_price:salePrice,visible:$('#pvis').checked,low_threshold:parseInt($('#pth').value)||null}).select().single();
  if(error){toast(error.message);return}
  if(newPhotoFile){const url=await uploadPhoto(newPhotoFile,p.id);if(url)await sb.from('products').update({photo_url:url}).eq('id',p.id);newPhotoFile=null}
  const V=parseList($('#pv').value),C=parseList($('#pc').value),single=V.length*C.length===1,bc=$('#pb').value.trim();
@@ -313,7 +367,7 @@ async function entries(){
  return `<h1>${t('entries')}</h1><p class="sub">Réapprovisionnement : indiquez le nom du produit <b>ou</b> son code-barres, l'autre se remplit automatiquement.</p>
  <div class="card">
  <div class="grid"><div><label for="er">${t('reference')} commande</label><input id="er" placeholder="${suggestedRef} (laisser vide = auto)"></div><div><label for="edt">${t('date')}</label><input id="edt" type="date" value="${today()}"></div><div><label for="ef">${t('supplier')}</label><input id="ef"></div><div><label for="edue">Échéance de paiement</label><input id="edue" type="date"></div></div>
- ${entryLines.map((l,i)=>`<div class="line l5">${entryLineFields(i,l)}<input type="number" min="1" placeholder="${t('qty')}" value="${l.q||''}" oninput="entryLines[${i}].q=this.value;render()"><button onclick="entryLines.splice(${i},1);render()">✕</button></div>`).join('')}
+ ${entryLines.map((l,i)=>`<div class="line l5">${entryLineFields(i,l)}<input id="eq${i}" type="number" min="1" placeholder="${t('qty')}" value="${l.q||''}" oninput="entryLines[${i}].q=this.value;render()"><button onclick="entryLines.splice(${i},1);render()">✕</button></div>`).join('')}
  <div class="row"><button class="btn ghost" onclick="entryLines.push({});render()">Ajouter une ligne</button></div>
  <div class="grid"><div><label>Montant calculé</label><input value="${dh(total)}" disabled></div><div><label for="ereal">Montant réel (si remise fournisseur)</label><input id="ereal" type="number" min="0" step="any" placeholder="${Math.round(total)}"></div></div>
  <button class="btn" onclick="saveEntries('${suggestedRef}')">${t('save')} l'entrée</button></div>
@@ -349,17 +403,20 @@ function cartLineFields(i,l){
 function cartNameChange(i,val){cart[i]=cart[i]||{};cart[i].nameText=val;const m=resolveCombo(val);if(m){const pv=prodOf(m.vid);cart[i]={vid:m.vid,price:pv?.p.price||0,q:cart[i].q||1}}else if(val)toast('Produit introuvable');render(true)}
 function cartBcChange(i,val){cart[i]=cart[i]||{};cart[i].bcText=val;const f=findByBarcode(val);if(f){cart[i]={vid:f.v.id,price:f.p.price,q:cart[i].q||1}}else if(val)toast('Code inconnu');render(true)}
 function saleTotals(){const sub=round2(cart.reduce((s,l)=>s+(parseFloat(l.price)||0)*(parseInt(l.q)||0),0)),dv=parseFloat(saleMeta.discVal)||0,dAmt=round2(Math.min(sub,saleMeta.disc==='pct'?sub*dv/100:dv));return{sub,dAmt,total:round2(sub-dAmt)}}
-function sales(){
+async function sales(){
  if(!products.length)return `<h1>${t('sales')}</h1><div class="panel empty">Ajoutez d'abord un produit. <button class="btn" onclick="go('products')">Aller aux produits</button></div>`;
  const tot=saleTotals(),given=parseFloat(saleMeta.given)||0,change=round2(given-tot.total);
+ const{data:todayMoves}=await sb.from('moves').select('qty,unit_price').eq('type','out').eq('date',today());
+ const todayCA=(todayMoves||[]).reduce((s,x)=>s+x.qty*x.unit_price,0);
  return `<h1>${t('sales')}</h1><p class="sub">Indiquez le nom du produit <b>ou</b> son code-barres, l'autre se remplit automatiquement ; le stock diminue à l'enregistrement.</p>
+ <div class="ovp"><div class="ov"><div class="oc" data-t="c"><span class="ic">${ic('trend')}</span><div><b>${dh(todayCA)}</b><span>Chiffre d'affaires du jour</span></div></div></div></div>
  <div class="card">
- ${cart.map((l,i)=>`<div class="line l6">${cartLineFields(i,l)}<input type="number" min="1" placeholder="${t('qty')}" value="${l.q||''}" oninput="cart[${i}].q=this.value;render()"><input type="number" min="0" step="any" placeholder="${t('price')}" value="${l.price??''}" oninput="cart[${i}].price=this.value;render()"><button onclick="cart.splice(${i},1);render()">✕</button></div>`).join('')}
+ ${cart.map((l,i)=>`<div class="line l6">${cartLineFields(i,l)}<input id="cq${i}" type="number" min="1" placeholder="${t('qty')}" value="${l.q||''}" oninput="cart[${i}].q=this.value;render()"><input id="cpr${i}" type="number" min="0" step="any" placeholder="${t('price')}" value="${l.price??''}" oninput="cart[${i}].price=this.value;render()"><button onclick="cart.splice(${i},1);render()">✕</button></div>`).join('')}
  <div class="row"><button class="btn ghost" onclick="cart.push({});render()">Ajouter une ligne</button></div>
- ${cart.length?`<div class="grid"><div><label>Remise</label><div class="row" style="margin:0"><select style="max-width:100px" onchange="saleMeta.disc=this.value;render()"><option value="pct" ${saleMeta.disc==='pct'?'selected':''}>%</option><option value="amt" ${saleMeta.disc==='amt'?'selected':''}>DH</option></select><input type="number" min="0" step="any" value="${saleMeta.discVal}" oninput="saleMeta.discVal=this.value;render()"></div></div>
+ ${cart.length?`<div class="grid"><div><label>Remise</label><div class="row" style="margin:0"><select style="max-width:100px" onchange="saleMeta.disc=this.value;render()"><option value="pct" ${saleMeta.disc==='pct'?'selected':''}>%</option><option value="amt" ${saleMeta.disc==='amt'?'selected':''}>DH</option></select><input id="sdisc" type="number" min="0" step="any" value="${saleMeta.discVal}" oninput="saleMeta.discVal=this.value;render()"></div></div>
  <div><label>Mode de paiement</label><div class="seg"><button class="${saleMeta.payment==='cash'?'on':''}" onclick="saleMeta.payment='cash';render()">💵 Cash</button><button class="${saleMeta.payment==='tpe'?'on':''}" onclick="saleMeta.payment='tpe';render()">💳 TPE</button></div></div></div>`:''}
  <div class="total">Sous-total : ${dh(tot.sub)}${tot.dAmt?` · Remise : -${dh(tot.dAmt)}`:''}<br>Total à payer : ${dh(tot.total)}</div>
- ${saleMeta.payment==='cash'?`<div class="grid"><div><label>Montant donné</label><input type="number" min="0" step="any" value="${saleMeta.given}" oninput="saleMeta.given=this.value;render()"></div><div><label>Monnaie à rendre</label><input value="${dh(Math.max(0,change))}" disabled></div></div>${saleMeta.given!==''&&given<tot.total?'<p class="err">Montant donné insuffisant</p>':''}`:''}
+ ${saleMeta.payment==='cash'?`<div class="grid"><div><label>Montant donné</label><input id="sgiven" type="number" min="0" step="any" value="${saleMeta.given}" oninput="saleMeta.given=this.value;render()"></div><div><label>Monnaie à rendre</label><input value="${dh(Math.max(0,change))}" disabled></div></div>${saleMeta.given!==''&&given<tot.total?'<p class="err">Montant donné insuffisant</p>':''}`:''}
  <button class="btn" onclick="saveSale()" ${!cart.length?'disabled':''}>${t('save')} la vente</button></div>
  ${lastReceipt?receiptCard():''}`;
 }
@@ -372,9 +429,9 @@ async function saveSale(){
  const{data:saleId,error}=await sb.rpc('record_sale',{p_items:items,p_discount_type:saleMeta.disc,p_discount_value:parseFloat(saleMeta.discVal)||0,p_payment:saleMeta.payment,p_given:saleMeta.payment==='cash'?given:null,p_by:me.id});
  if(error){toast(error.message.includes('Stock')?'Stock insuffisant pour un article':error.message);return}
  lastReceipt={id:saleId,date:today(),items:ok.map(l=>({name:prodOf(l.vid)?.p.name,v:prodOf(l.vid)?.v.variant,c:prodOf(l.vid)?.v.color,q:parseInt(l.q),price:round2(parseFloat(l.price)*(tt.sub>0?tt.total/tt.sub:1))})),sub:tt.sub,discAmt:tt.dAmt,total:tt.total,payment:saleMeta.payment,given,change:round2(given-tt.total),by:me.name};
- cart=[];saleMeta={disc:'pct',discVal:'',payment:saleMeta.payment,given:''};toast('Vente enregistrée 🎉');await refresh()
+ cart=[{}];saleMeta={disc:'pct',discVal:'',payment:saleMeta.payment,given:''};toast('Vente enregistrée 🎉');await refresh()
 }
-function receiptCard(){const r=lastReceipt;return `<div class="card" id="receipt"><h2 style="margin-top:0">Reçu</h2><p class="hint" style="margin:0 0 10px">${fd(r.date)} · ${esc(r.by)}</p>
+function receiptCard(){const r=lastReceipt;return `<div class="card" id="receipt"><div style="display:flex;align-items:center;gap:10px;margin-bottom:6px"><img src="logo.png" alt="" style="height:36px;width:36px;border-radius:8px;object-fit:cover"><h2 style="margin:0">Reçu</h2></div><p class="hint" style="margin:0 0 10px">${fd(r.date)} · ${esc(displayName(r.by))}</p>
  <div class="panel scroll"><table><tr><th>Article</th><th class="n">Qté</th><th class="n">Total</th></tr>${r.items.map(i=>`<tr><td>${esc(i.name)} · ${esc(i.v)} · ${esc(i.c)}</td><td class="n">${i.q}</td><td class="n">${dh(i.price*i.q)}</td></tr>`).join('')}</table></div>
  <p class="hint">Sous-total : ${dh(r.sub)}${r.discAmt?` · Remise : -${dh(r.discAmt)}`:''}</p>
  <div class="total">Total payé : ${dh(r.total)} — ${r.payment==='cash'?'Cash':'TPE'}</div>
@@ -569,9 +626,23 @@ function brandTab(){
 async function users(){
  const{data}=await sb.from('profiles').select('*').order('created_at');
  const list=data||[];
- return `<h1>Utilisateurs</h1><p class="sub">Les comptes se créent dans Supabase (Authentication → Add user) ; attribuez ensuite le nom et le rôle ici.</p>
+ return `<h1>Utilisateurs</h1><p class="sub">${isAdmin()?"Créez un compte directement ci-dessous, ou dans Supabase (Authentication → Add user) puis attribuez le nom et le rôle ici.":"Les comptes se créent dans Supabase (Authentication → Add user) ; attribuez ensuite le nom et le rôle ici."}</p>
+ ${isAdmin()?`<div class="card"><h2 style="margin-top:0">Nouveau compte</h2>
+ <div class="grid"><div><label for="nun">Nom</label><input id="nun"></div><div><label for="nue">Email</label><input id="nue" type="email"></div></div>
+ <div class="grid"><div><label for="nup">Mot de passe</label><input id="nup" type="password"></div><div><label for="nur">Rôle</label><select id="nur">${Object.entries(ROLE).map(([k,l])=>`<option value="${k}">${l}</option>`).join('')}</select></div></div>
+ <button class="btn" onclick="createUser()">Créer le compte</button>
+ <p class="hint" style="margin:10px 0 0">Fonctionne une fois la fonction Supabase <code>create-user</code> déployée (voir README).</p></div>`:''}
  <div class="panel scroll"><table><tr><th>Nom</th><th>Rôle</th><th class="n"></th></tr>${list.map(u=>`<tr><td><input value="${esc(u.name)}" onchange="renameUser('${u.id}',this.value)" style="min-width:140px"></td><td><select onchange="setRole('${u.id}',this.value)">${Object.entries(ROLE).map(([k,l])=>`<option value="${k}" ${u.role===k?'selected':''}>${l}</option>`).join('')}</select></td><td class="n">${u.id===me.id?'<span class="hint">(vous)</span>':''}</td></tr>`).join('')}</table></div>
  <p class="hint">Vendeur : ventes et consultation. Magasinier : produits et entrées. Administrateur : tout, y compris profit et utilisateurs.</p>`;
+}
+async function createUser(){
+ const name=$('#nun').value.trim(),email=$('#nue').value.trim(),password=$('#nup').value,role=$('#nur').value;
+ if(!name||!email||!password){toast('Nom, email et mot de passe requis');return}
+ if(password.length<6){toast('Mot de passe : 6 caractères minimum');return}
+ const{data,error}=await sb.functions.invoke('create-user',{body:{name,email,password,role}});
+ if(error||data?.error){toast((data&&data.error)||error.message||'Erreur lors de la création');return}
+ $('#nun').value='';$('#nue').value='';$('#nup').value='';
+ toast('Compte créé 🎉');await render()
 }
 async function renameUser(id,name){await sb.from('profiles').update({name:name.trim()}).eq('id',id);if(id===me.id)me.name=name.trim();await render()}
 async function setRole(id,role){const{error}=await sb.from('profiles').update({role}).eq('id',id);if(error){toast(error.message);return}if(id===me.id)me.role=role;await render()}

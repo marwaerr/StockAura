@@ -439,7 +439,7 @@ async function profit(){
 
 /* ---------- Promotions ---------- */
 let newPromoImg=null;
-function pickPromoImg(inp){newPromoImg=inp.files[0]||null}
+function pickPromoImg(inp){newPromoImg=inp.files[0]||null;const r=$('#mimgp');if(!r)return;if(newPromoImg){const rd=new FileReader();rd.onload=()=>r.innerHTML=`<img src="${rd.result}" alt="" style="width:100%;max-width:320px;aspect-ratio:2.43/1;object-fit:cover;border-radius:10px;margin-top:8px">`;rd.readAsDataURL(newPromoImg)}else r.innerHTML=''}
 let siteTab='promotions';
 function siteNav(){
  const tabs=[['promotions','Promotions'],['reviews','Avis'],['categories','Catégories'],['brands','Marques']];
@@ -461,7 +461,7 @@ async function promoTab(){
  <div class="grid"><div><label for="mt">Titre</label><input id="mt" placeholder="Black Friday 🔥"></div><div><label for="md">% de remise (indicatif)</label><input id="md" type="number" min="0" max="100"></div></div>
  <div class="grid"><div><label for="ms">Du</label><input id="ms" type="date"></div><div><label for="me2">Au</label><input id="me2" type="date"></div></div>
  <label for="mdesc">Description</label><input id="mdesc" style="margin-bottom:14px" placeholder="Jusqu'à -30% sur tout le magasin !">
- <div class="grid"><div><label for="mimg">Image de la bannière (facultatif)</label><input id="mimg" type="file" accept="image/*" onchange="pickPromoImg(this)"></div><div><label for="mcat">Emmène vers la catégorie</label><select id="mcat"><option value="">— Toute la boutique —</option>${categories.map(c=>`<option value="${esc(c.name)}">${esc(c.name)}</option>`).join('')}</select></div></div>
+ <div class="grid"><div><label for="mimg">Image de la bannière (facultatif — format recommandé 1200 × 494 px, paysage)</label><input id="mimg" type="file" accept="image/*" onchange="pickPromoImg(this)"><div id="mimgp"></div></div><div><label for="mcat">Emmène vers la catégorie</label><select id="mcat"><option value="">— Toute la boutique —</option>${categories.map(c=>`<option value="${esc(c.name)}">${esc(c.name)}</option>`).join('')}</select></div></div>
  <button class="btn" onclick="addPromo()">Publier</button></div>
  ${list.length?`<div class="panel scroll"><table><tr><th></th><th>Titre</th><th>Cible</th><th>Période</th><th class="n">Actif</th><th class="n"></th></tr>${list.map(m=>`<tr><td>${m.image_url?`<img src="${esc(m.image_url)}" alt="" style="width:44px;height:44px;border-radius:10px;object-fit:cover">`:'<span class="th">🎁</span>'}</td><td>${esc(m.title)}</td><td>${esc(m.target_category||'Toute la boutique')}</td><td>${fd(m.starts_at)||'—'} → ${fd(m.ends_at)||'—'}</td><td class="n"><button class="tgsw ${m.active?'on':''}" onclick="this.classList.toggle('on');togglePromo('${m.id}',${m.active})"></button></td><td class="n"><button class="btn ghost" onclick="delPromo('${m.id}')">Supprimer</button></td></tr>`).join('')}</table></div>`:'<div class="panel empty">Aucune promotion.</div>'}`;
 }

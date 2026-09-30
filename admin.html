@@ -96,10 +96,10 @@ async function loadProducts(){
 const combos=()=>products.flatMap(p=>p.variants.map(v=>({p,v,q:v.quantity})));
 function findByBarcode(code){code=(code||'').trim();if(!code)return null;for(const p of products)for(const v of p.variants)if(v.barcode===code)return{p,v};return null}
 function prodOf(variantId){for(const p of products)for(const v of p.variants)if(v.id===variantId)return{p,v};return null}
-let categories=[],subcategories=[],brands=[],editingId=null;
+let categories=[],subcategories=[],brands=[],departments=[],editingId=null;
 async function loadCategories(){
- const[{data:c},{data:s},{data:b}]=await Promise.all([sb.from('categories').select('*').order('sort').order('name'),sb.from('subcategories').select('*').order('name'),sb.from('brands').select('*').order('name')]);
- categories=c||[];subcategories=s||[];brands=b||[];
+ const[{data:c},{data:s},{data:b},{data:d}]=await Promise.all([sb.from('categories').select('*').order('sort').order('name'),sb.from('subcategories').select('*').order('name'),sb.from('brands').select('*').order('name'),sb.from('departments').select('*').order('sort').order('name')]);
+ categories=c||[];subcategories=s||[];brands=b||[];departments=d||[];
 }
 async function refreshCats(){await loadCategories();await render()}
 
@@ -167,7 +167,11 @@ function cbPreview(){
  const V=parseList($('#pv').value),C=parseList($('#pc').value);
  $('#cbx').innerHTML=V.length*C.length>1?'<label>Code-barres de chaque déclinaison (facultatif)</label>'+V.flatMap(v=>C.map(c=>`<div class="scan"><span class="cl">${esc(v)} · ${esc(c)}</span><input class="cbn" data-v="${esc(v)}" data-c="${esc(c)}" placeholder="Scanner ou saisir"></div>`)).join(''):'';
 }
-function catOptions(sel){return`<select id="pcat" onchange="onCatChange()"><option value="">— Choisir —</option>${categories.map(c=>`<option value="${esc(c.name)}" ${sel===c.name?'selected':''}>${esc(c.name)}</option>`).join('')}</select>`}
+function catOptions(sel){
+ const groups=departments.map(d=>`<optgroup label="${esc(d.name)}">${categories.filter(c=>c.department_id===d.id).map(c=>`<option value="${esc(c.name)}" ${sel===c.name?'selected':''}>${esc(c.name)}</option>`).join('')}</optgroup>`).join('');
+ const orphans=categories.filter(c=>!c.department_id).map(c=>`<option value="${esc(c.name)}" ${sel===c.name?'selected':''}>${esc(c.name)}</option>`).join('');
+ return`<select id="pcat" onchange="onCatChange()"><option value="">— Choisir —</option>${groups}${orphans}</select>`;
+}
 function subOptions(catName){const cat=categories.find(c=>c.name===catName);const subs=cat?subcategories.filter(s=>s.category_id===cat.id):[];return`<select id="psub"><option value="">— Aucune —</option>${subs.map(s=>`<option value="${esc(s.name)}">${esc(s.name)}</option>`).join('')}</select>`}
 function onCatChange(){const sel=$('#pcat').value;$('#subwrap').innerHTML=subOptions(sel)}
 function brandOptions(id){return`<select id="${id}"><option value="">— Choisir —</option>${brands.map(b=>`<option value="${esc(b.name)}">${esc(b.name)}</option>`).join('')}</select>`}
@@ -250,7 +254,7 @@ function editForm(id){
  return `<div class="card"><h2 style="margin-top:0">Modifier « ${esc(p.name)} »</h2>
  <div class="grid"><div><label for="ename">Nom</label><input id="ename" value="${esc(p.name)}"></div><div><label for="ebrand">Marque</label><select id="ebrand"><option value="">— Choisir —</option>${brands.map(b=>`<option value="${esc(b.name)}" ${p.brand===b.name?'selected':''}>${esc(b.name)}</option>`).join('')}</select></div></div>
  <div class="grid"><div><label for="eprice">Prix de vente (DH)</label><input id="eprice" type="number" min="0" step="any" value="${p.price}"></div>${isAdmin()?`<div><label for="ecost">Prix d'achat (DH)</label><input id="ecost" type="number" min="0" step="any" value="${p.cost||0}"></div>`:''}</div>
- <div class="grid"><div><label for="ecat">Catégorie</label><select id="ecat" onchange="onEditCatChange()">${categories.map(c=>`<option value="${esc(c.name)}" ${p.category===c.name?'selected':''}>${esc(c.name)}</option>`).join('')}</select></div><div><label for="esub">Sous-catégorie</label><div id="esubwrap">${editSubOptions(p.category,p.subcategory)}</div></div></div>
+ <div class="grid"><div><label for="ecat">Catégorie</label><select id="ecat" onchange="onEditCatChange()">${departments.map(d=>`<optgroup label="${esc(d.name)}">${categories.filter(c=>c.department_id===d.id).map(c=>`<option value="${esc(c.name)}" ${p.category===c.name?'selected':''}>${esc(c.name)}</option>`).join('')}</optgroup>`).join('')}${categories.filter(c=>!c.department_id).map(c=>`<option value="${esc(c.name)}" ${p.category===c.name?'selected':''}>${esc(c.name)}</option>`).join('')}</select></div><div><label for="esub">Sous-catégorie</label><div id="esubwrap">${editSubOptions(p.category,p.subcategory)}</div></div></div>
  <label for="edesc">Description</label><textarea id="edesc" rows="3" style="width:100%;font:inherit;border:1px solid var(--line);border-radius:8px;padding:9px 11px;margin-bottom:12px">${esc(p.description||'')}</textarea>
  <div class="grid"><div><label for="ethresh">Seuil stock faible</label><input id="ethresh" type="number" min="0" value="${p.low_threshold||''}"></div><div><label for="ephoto">Photo principale (remplacer, facultatif)</label><input id="ephoto" type="file" accept="image/*"></div></div>
  <label style="display:flex;gap:8px;align-items:center;font-weight:400;margin:10px 0"><input type="checkbox" id="evis" ${p.visible?'checked':''} style="width:auto">Afficher sur le site</label>
@@ -509,13 +513,14 @@ let newPromoImg=null;
 function pickPromoImg(inp){newPromoImg=inp.files[0]||null;const r=$('#mimgp');if(!r)return;if(newPromoImg){const rd=new FileReader();rd.onload=()=>r.innerHTML=`<img src="${rd.result}" alt="" style="width:100%;max-width:320px;aspect-ratio:2.43/1;object-fit:cover;border-radius:10px;margin-top:8px">`;rd.readAsDataURL(newPromoImg)}else r.innerHTML=''}
 let siteTab='promotions';
 function siteNav(){
- const tabs=[['promotions','Promotions'],['reviews','Avis'],['categories','Catégories'],['brands','Marques']];
+ const tabs=[['promotions','Promotions'],['reviews','Avis'],['departments','Rayons'],['categories','Catégories'],['brands','Marques']];
  return `<div class="seg" style="margin-bottom:18px">${tabs.map(([k,l])=>`<button class="${siteTab===k?'on':''}" onclick="siteTab='${k}';render()">${l}</button>`).join('')}</div>`;
 }
 async function site(){
  let body='';
  if(siteTab==='promotions')body=await promoTab();
  else if(siteTab==='reviews')body=await reviewTab();
+ else if(siteTab==='departments')body=deptTab();
  else if(siteTab==='categories')body=catTab();
  else body=brandTab();
  return `<h1>Site</h1><p class="sub">Tout ce qui est visible par vos clientes et clients sur le site vitrine.</p>${siteNav()}${body}`;
@@ -572,8 +577,10 @@ async function uploadSiteImage(file,path){
  return sb.storage.from('site-images').getPublicUrl(path).data.publicUrl;
 }
 async function addCategory(){
- const name=$('#newcat').value.trim();if(!name){toast('Indiquez un nom de catégorie');return}
- const{data:c,error}=await sb.from('categories').insert({name}).select().single();
+ const name=$('#newcat').value.trim(),deptId=$('#newcatdept').value;
+ if(!name){toast('Indiquez un nom de catégorie');return}
+ if(!deptId){toast('Choisissez un rayon');return}
+ const{data:c,error}=await sb.from('categories').insert({name,department_id:deptId}).select().single();
  if(error){toast(error.message);return}
  if(newCatImg){const url=await uploadSiteImage(newCatImg,`cat-${c.id}.${(newCatImg.name.split('.').pop()||'jpg').toLowerCase()}`);if(url)await sb.from('categories').update({image_url:url}).eq('id',c.id);newCatImg=null}
  $('#newcat').value='';toast('Catégorie ajoutée 🎉');await refreshCats()
@@ -586,6 +593,7 @@ async function renameCategory(id,name){
  if(old&&old.name!==name)await sb.from('products').update({category:name}).eq('category',old.name);
  await refreshCats();await refresh()
 }
+async function setCategoryDept(id,deptId){const{error}=await sb.from('categories').update({department_id:deptId}).eq('id',id);if(error){toast(error.message);return}await refreshCats()}
 async function setCategoryImage(id,inp){const f=inp.files[0];if(!f)return;const url=await uploadSiteImage(f,`cat-${id}.${(f.name.split('.').pop()||'jpg').toLowerCase()}`);if(url){await sb.from('categories').update({image_url:url}).eq('id',id);await refreshCats()}}
 async function delCategory(id){if(confirm('Supprimer cette catégorie et ses sous-catégories ?')){await sb.from('categories').delete().eq('id',id);await refreshCats()}}
 async function addSubcategory(catId,inputId){
@@ -603,16 +611,54 @@ async function renameSubcategory(id,name){
  await refreshCats();await refresh()
 }
 async function delSubcategory(id){await sb.from('subcategories').delete().eq('id',id);await refreshCats()}
-function catTab(){
- return `<div class="card"><h2 style="margin-top:0">Nouvelle catégorie</h2>
- <div class="grid"><div><label for="newcat">Nom</label><input id="newcat" placeholder="Ex. Bébé"></div><div><label for="newcatimg">Image (facultatif)</label><input id="newcatimg" type="file" accept="image/*" onchange="pickCatImg(this)"></div></div>
- <button class="btn" onclick="addCategory()">Ajouter la catégorie</button></div>
- ${categories.length?categories.map(c=>`<div class="card"><div class="row" style="align-items:center;margin-bottom:10px">
+
+/* ---------- Rayons ---------- */
+async function addDepartment(){
+ const name=$('#newdept').value.trim();if(!name){toast('Indiquez un nom de rayon');return}
+ const{error}=await sb.from('departments').insert({name});
+ if(error){toast(error.message);return}
+ $('#newdept').value='';toast('Rayon ajouté 🎉');await refreshCats()
+}
+async function renameDepartment(id,name){name=name.trim();if(!name){toast('Le nom ne peut pas être vide');return}const{error}=await sb.from('departments').update({name}).eq('id',id);if(error){toast(error.message);return}await refreshCats()}
+async function delDepartment(id){if(confirm('Supprimer ce rayon ? Les catégories qui y sont rattachées resteront, mais sans rayon.')){await sb.from('departments').delete().eq('id',id);await refreshCats()}}
+function deptTab(){
+ return `<p class="hint" style="margin:0 0 14px">Un rayon regroupe plusieurs catégories (ex. le rayon "Maman" peut contenir les catégories "Soins maman", "Tisanes"…).</p>
+ <div class="card"><h2 style="margin-top:0">Nouveau rayon</h2>
+ <div class="row"><input id="newdept" placeholder="Ex. Bébé"><button class="btn" onclick="addDepartment()">Ajouter</button></div></div>
+ ${departments.length?`<div class="panel scroll"><table><tr><th>Nom</th><th class="n">Catégories</th><th class="n"></th></tr>${departments.map(d=>`<tr><td><input value="${esc(d.name)}" onchange="renameDepartment('${d.id}',this.value)" style="min-width:140px"></td><td class="n">${categories.filter(c=>c.department_id===d.id).length}</td><td class="n"><button class="btn ghost" onclick="delDepartment('${d.id}')">Supprimer</button></td></tr>`).join('')}</table></div>`:'<div class="panel empty">Aucun rayon pour le moment.</div>'}`;
+}
+function categoryCard(c){
+ return `<div class="card"><div class="row" style="align-items:center;margin-bottom:10px">
  <label class="thl" title="Changer la photo">${c.image_url?`<img src="${esc(c.image_url)}" alt="" style="width:44px;height:44px;border-radius:10px;object-fit:cover">`:'<span class="th">📦</span>'}<input type="file" accept="image/*" hidden onchange="setCategoryImage('${c.id}',this)"></label>
  <input value="${esc(c.name)}" onchange="renameCategory('${c.id}',this.value)" style="flex:1;font-weight:800;min-width:120px">
+ <select onchange="setCategoryDept('${c.id}',this.value)" style="max-width:140px"><option value="">— Rayon —</option>${departments.map(d=>`<option value="${d.id}" ${c.department_id===d.id?'selected':''}>${esc(d.name)}</option>`).join('')}</select>
  <button class="btn ghost" onclick="delCategory('${c.id}')">Supprimer</button></div>
- <div class="row">${subcategories.filter(s=>s.category_id===c.id).map(s=>`<span class="pill" style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px"><input value="${esc(s.name)}" onchange="renameSubcategory('${s.id}',this.value)" style="border:0;background:transparent;padding:0;min-height:auto;width:${Math.max(6,s.name.length)}ch;color:inherit;font:inherit"><a href="#" onclick="delSubcategory('${s.id}');return false" style="color:var(--bad)">✕</a></span>`).join('')||'<span class="hint">Aucune sous-catégorie</span>'}</div>
- <div class="row" style="margin-top:10px"><input id="sub_${c.id}" placeholder="Nouvelle sous-catégorie"><button class="btn ghost" onclick="addSubcategory('${c.id}','sub_${c.id}')">Ajouter</button></div></div>`).join(''):'<div class="panel empty">Aucune catégorie pour le moment.</div>'}`;
+ <div class="row">${subcatChips(c.id)}</div>
+ <div class="row" style="margin-top:10px"><input id="sub_${c.id}" placeholder="Nouvelle sous-catégorie"><button class="btn ghost" onclick="addSubcategory('${c.id}','sub_${c.id}')">Ajouter</button></div></div>`;
+}
+function subcatChips(catId){
+ const subs=subcategories.filter(s=>s.category_id===catId);
+ if(!subs.length)return'<span class="hint">Aucune sous-catégorie</span>';
+ return subs.map(subChip).join('');
+}
+function subChip(s){
+ return `<span class="pill" style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px"><input value="${esc(s.name)}" onchange="renameSubcategory('${s.id}',this.value)" style="border:0;background:transparent;padding:0;min-height:auto;width:${Math.max(6,s.name.length)}ch;color:inherit;font:inherit"><a href="#" onclick="delSubcategory('${s.id}');return false" style="color:var(--bad)">✕</a></span>`;
+}
+function deptOptions(){return departments.map(d=>`<option value="${d.id}">${esc(d.name)}</option>`).join('')}
+function catTab(){
+ const byDept=departments.map(d=>{
+  const cs=categories.filter(c=>c.department_id===d.id);
+  if(!cs.length)return'';
+  return `<h3 style="margin:20px 0 10px">${esc(d.name)}</h3>`+cs.map(categoryCard).join('');
+ }).join('');
+ const orphans=categories.filter(c=>!c.department_id);
+ const orphanBlock=orphans.length?`<h3 style="margin:20px 0 10px">Sans rayon</h3>`+orphans.map(categoryCard).join(''):'';
+ return `<div class="card"><h2 style="margin-top:0">Nouvelle catégorie</h2>
+ <div class="grid"><div><label for="newcat">Nom</label><input id="newcat" placeholder="Ex. Biberons"></div><div><label for="newcatdept">Rayon</label><select id="newcatdept">${deptOptions()}</select></div></div>
+ <div><label for="newcatimg">Image (facultatif)</label><input id="newcatimg" type="file" accept="image/*" onchange="pickCatImg(this)"></div>
+ ${!departments.length?`<p class="hint">Créez d'abord un rayon dans l'onglet "Rayons".</p>`:`<button class="btn" onclick="addCategory()" style="margin-top:12px">Ajouter la catégorie</button>`}</div>
+ ${byDept}${orphanBlock}
+ ${!categories.length?'<div class="panel empty">Aucune catégorie pour le moment.</div>':''}`;
 }
 
 /* ---------- Marques ---------- */

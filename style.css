@@ -66,6 +66,10 @@ main{max-width:none;padding:20px clamp(14px,3vw,30px)}
 .tools{display:flex;justify-content:flex-end;align-items:center;gap:12px;margin-bottom:6px}
 .tools input{max-width:260px;border-radius:99px;background:var(--card);min-height:38px}
 .tg{width:54px;height:28px;border-radius:99px;background:var(--card);border:1px solid var(--line);position:relative;cursor:pointer;padding:0}
+.tgsw{width:42px;height:24px;border-radius:99px;background:var(--line);border:1px solid var(--line);position:relative;cursor:pointer;padding:0;flex:none;transition:background .15s}
+.tgsw::after{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:left .15s}
+.tgsw.on{background:var(--ok);border-color:var(--ok)}
+.tgsw.on::after{left:20px}
 .tg::after{content:"";position:absolute;top:4px;left:5px;width:18px;height:18px;border-radius:50%;background:var(--side);transition:left .2s}
 [data-theme="dark"] .tg::after{left:29px}
 .kpi,.panel,.card{background:var(--card);border-radius:14px}

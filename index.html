@@ -11,19 +11,19 @@ html{scroll-padding-top:70px}*{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.6 Poppins,system-ui,sans-serif}
 a{color:inherit;text-decoration:none}h1,h2,h3{font-family:'Playfair Display',Georgia,serif;margin:0}
 .w{max-width:1160px;margin:0 auto;padding:0 20px}
-.top{background:#2B1F33;font-size:12px;color:#fff}
+.top{background:var(--pink-s);font-size:12px;color:var(--mute)}
 .top .w{display:flex;justify-content:center;padding:9px 20px;gap:22px;white-space:nowrap;overflow-x:auto}
 .top span{opacity:.95}
-header{background:#2B1F33;position:sticky;top:0;z-index:10;box-shadow:0 1px 8px rgba(0,0,0,.15)}
+header{background:var(--card);position:sticky;top:0;z-index:10;box-shadow:0 1px 8px rgba(0,0,0,.05)}
 .nav{display:flex;align-items:center;justify-content:space-between;gap:16px;height:70px;flex-wrap:wrap}
 .brand{display:flex;align-items:center;gap:10px;white-space:nowrap}
 .gnav{display:flex;gap:16px;font-size:12.5px;font-weight:500}
-.gnav a{color:rgba(255,255,255,.85)}
-.gnav a:hover{color:#fff;border-color:#fff}
-.ic{display:flex;gap:16px;font-size:18px;align-items:center;flex:none;color:#fff}
+.gnav a{color:var(--ink)}
+.gnav a:hover{color:var(--pink);border-color:var(--pink)}
+.ic{display:flex;gap:16px;font-size:18px;align-items:center;flex:none;color:var(--ink)}
 .brand img{height:44px;width:auto;display:block}
 .brand span{font:700 22px/1 'Playfair Display',serif;color:var(--pink)}
-.gnav a{padding:6px 0;border-bottom:2px solid transparent}.gnav a:hover{color:#fff;border-color:#fff}
+.gnav a{padding:6px 0;border-bottom:2px solid transparent}.gnav a:hover{color:var(--pink);border-color:var(--pink)}
 .ic button{all:unset;cursor:pointer;position:relative}
 .ic b{position:absolute;top:-8px;right:-10px;background:var(--pink);color:#fff;font:600 10px/16px Poppins;min-width:16px;text-align:center;border-radius:50%;padding:0 2px}
 .hero{position:relative;border-radius:0 0 40px 40px;overflow:hidden;background:var(--hero) url('hero-baby.jpg') right center/auto 100% no-repeat}
@@ -33,7 +33,9 @@ header{background:#2B1F33;position:sticky;top:0;z-index:10;box-shadow:0 1px 8px 
 .hero p{max-width:420px;color:var(--mute);margin:0 0 18px;position:relative}
 .pill{display:inline-block;background:var(--teal-s);color:var(--teal);font-size:11px;font-weight:600;padding:5px 14px;border-radius:99px;position:relative}
 .promobanners{display:grid;gap:12px;margin-bottom:18px}
-.promobanner{background:linear-gradient(90deg,var(--pink),#ff8fa3);color:#fff;border-radius:14px;padding:16px 20px}
+.promobanner{all:unset;cursor:pointer;display:block;width:100%;box-sizing:border-box;background:linear-gradient(90deg,var(--pink),#ff8fa3);color:#fff;border-radius:14px;padding:16px 20px;position:relative;overflow:hidden;min-height:60px}
+.promobanner.hasimg{padding:0;min-height:140px;background-size:cover;background-position:center}
+.promobanner.hasimg .pbtx{position:relative;z-index:1;padding:16px 20px;background:linear-gradient(90deg,rgba(0,0,0,.45),transparent 70%);height:100%;display:flex;flex-direction:column;justify-content:center}
 .promobanner b{font-size:16px}
 .promobanner span{background:rgba(255,255,255,.25);padding:2px 10px;border-radius:99px;font-size:12px;font-weight:700;margin-left:8px}
 .promobanner p{margin:6px 0 0;font-size:12.5px;opacity:.9}
@@ -44,7 +46,7 @@ header{background:#2B1F33;position:sticky;top:0;z-index:10;box-shadow:0 1px 8px 
 .feat i{font-style:normal;width:44px;height:44px;border-radius:50%;display:grid;place-items:center;font-size:19px;flex:none}.feat b{display:block;color:var(--ink);font-size:12px}
 .sec{padding:24px 0}.sec h2.t{text-align:center;font-size:20px;margin-bottom:20px}
 .sec h2.t:after{content:"";display:block;width:26px;height:2px;background:var(--pink);margin:8px auto 0}
-.cats{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:18px 10px}
+.cats{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:18px 10px}
 .cat{all:unset;cursor:pointer;text-align:center;transition:.2s;display:flex;flex-direction:column;align-items:center;gap:8px}
 .cat:hover{transform:translateY(-3px)}
 .cat.on .im{outline:3px solid var(--pink);outline-offset:2px}
@@ -53,8 +55,15 @@ header{background:#2B1F33;position:sticky;top:0;z-index:10;box-shadow:0 1px 8px 
 .cat h3{font:600 12px Poppins;margin:0}
 .chips{display:flex;flex-wrap:wrap;gap:10px;justify-content:center}
 .chips button{all:unset;cursor:pointer;background:var(--card);border:1px solid var(--line);border-radius:99px;padding:8px 18px;font-size:12px;font-weight:500}
+.slider-wrap{position:relative;display:flex;align-items:center;gap:8px}
+.slider{display:flex;gap:10px;overflow-x:auto;scroll-behavior:smooth;scroll-snap-type:x mandatory;padding:4px 2px;flex:1}
+.slider::-webkit-scrollbar{display:none}
+.slider .chip{all:unset;cursor:pointer;flex:none;scroll-snap-align:start;background:var(--card);border:1px solid var(--line);border-radius:99px;padding:8px 18px;font-size:12px;font-weight:500;white-space:nowrap}
+.slider .chip.on,.slider .chip:hover{border-color:var(--pink);color:var(--pink)}
+.slidebtn{all:unset;cursor:pointer;flex:none;width:34px;height:34px;border-radius:50%;background:var(--card);border:1px solid var(--line);display:grid;place-items:center;font-size:15px;color:var(--ink)}
+.slidebtn:hover{border-color:var(--pink);color:var(--pink)}
 .chips button.on,.chips button:hover{border-color:var(--pink);color:var(--pink)}
-.prods{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:16px}
+.prods{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:16px}
 .prod{background:var(--card);border-radius:14px;box-shadow:0 2px 12px rgba(0,0,0,.07);padding:14px;position:relative;display:flex;flex-direction:column}
 .prod .im{height:110px;border-radius:10px;display:grid;place-items:center;font-size:44px;margin-bottom:10px;background:var(--pink-s);overflow:hidden}
 .prod .im img{width:100%;height:100%;object-fit:cover;border-radius:10px}
@@ -82,11 +91,11 @@ header{background:#2B1F33;position:sticky;top:0;z-index:10;box-shadow:0 1px 8px 
 .nl{background:var(--nl);border-radius:22px;padding:22px 24px;display:flex;align-items:center;gap:20px;flex-wrap:wrap;margin:10px 0}
 .nl .ml{width:54px;height:54px;border-radius:50%;background:var(--teal);display:grid;place-items:center;font-size:22px;color:#fff;flex:none}
 .nl .tx{flex:1;min-width:200px}.nl h3{font:600 15px Poppins;margin:0}.nl p{margin:2px 0 0;font-size:12px;color:var(--mute)}
-footer{margin-top:20px;background:#2B1F33;padding:30px 0 16px;font-size:12px;color:rgba(255,255,255,.75)}
+footer{margin-top:20px;background:var(--hero);padding:30px 0 16px;font-size:12px;color:var(--mute)}
 .fg{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:24px}
 .fg .brand img{height:34px}
-footer h4{margin:0 0 10px;color:#fff;font-size:12px}footer a,footer span{display:block;margin:5px 0;color:rgba(255,255,255,.75)}
-footer a:hover{color:#fff}
+footer h4{margin:0 0 10px;color:var(--ink);font-size:12px}footer a,footer span{display:block;margin:5px 0;color:var(--mute)}
+footer a:hover{color:var(--pink)}
 .cp{text-align:center;margin-top:20px;font-size:11px}
 .panel.empty{background:var(--card);border-radius:14px;padding:20px;color:var(--mute);text-align:center}
 .overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:20;opacity:0;pointer-events:none;transition:opacity .2s}
@@ -107,7 +116,7 @@ footer a:hover{color:#fff}
 <div class="top"><div class="w" id="ribbon"><span>🚚 Livraison rapide partout au Maroc</span><span>Une question ? Contactez-nous</span></div></div>
 <header><div class="w nav">
  <a class="brand" href="#"><img src="logo.png" alt="Ola Bébé"><span>Ola Bébé</span></a>
- <nav class="gnav"><a href="#new">Nouveautés</a><a href="#promo">Promos</a><a href="#cats">Catégories</a><a href="#prods">Produits</a><a href="#reviews">Avis</a></nav>
+ <nav class="gnav"><a href="#new">Nouveautés</a><a href="#promo">Promo</a><a href="#cats">Bébé</a><a href="#" onclick="pickCat('Pour maman');document.getElementById('prods').scrollIntoView({behavior:'smooth'});return false">Maman</a><a href="#brands">Marques</a></nav>
  <div class="ic"><button aria-label="Panier" onclick="openCart()">🛒<b id="fabn" style="display:none">0</b></button></div>
 </div></header>
 <section class="hero"><div class="w">
@@ -187,8 +196,9 @@ function renderCats(){
 }
 function renderBrands(){
  const b=brands();
- $('#brandwrap').innerHTML=b.length?`<div class="chips">${b.map(m=>`<button class="${activeBrand===m?'on':''}" onclick="pickBrand('${esc(m)}')">${esc(m)}</button>`).join('')}</div>`:'<div class="panel empty">Les marques apparaîtront ici dès que vous en indiquerez sur vos produits.</div>';
+ $('#brandwrap').innerHTML=b.length?`<div class="slider-wrap"><button class="slidebtn" aria-label="Précédent" onclick="slideBrands(-1)">‹</button><div class="slider" id="brandslider">${b.map(m=>`<button class="chip ${activeBrand===m?'on':''}" onclick="pickBrand('${esc(m)}')">${esc(m)}</button>`).join('')}</div><button class="slidebtn" aria-label="Suivant" onclick="slideBrands(1)">›</button></div>`:'<div class="panel empty">Les marques apparaîtront ici dès que vous en indiquerez sur vos produits.</div>';
 }
+function slideBrands(dir){const el=$('#brandslider');if(el)el.scrollBy({left:dir*220,behavior:'smooth'})}
 function stBadge(x){const th=x.p.low_threshold||LOW,st=x.v.quantity<=0?['Rupture','#c0392b']:x.v.quantity<=th?['Stock faible','#c98a1f']:['En stock','#3f9d63'];return `<span class="stb" style="color:${st[1]}">${st[0]}</span>`}
 function renderGrid(){
  let list=combos();
@@ -200,9 +210,10 @@ function renderNew(){
  const list=combos().filter(x=>x.p.is_new);
  $('#newgrid').innerHTML=list.length?`<div class="prods">${list.slice(0,8).map(cardHTML).join('')}</div>`:'<div class="panel empty">Aucune nouveauté pour le moment.</div>';
 }
+function goPromo(cat){if(cat)pickCat(cat);const el=document.getElementById('prods');if(el)el.scrollIntoView({behavior:'smooth'})}
 function renderPromo(){
  const list=combos().filter(x=>x.p.on_sale);
- const banners=promos.length?`<div class="promobanners">${promos.map(m=>`<div class="promobanner"><b>${esc(m.title)}</b>${m.discount_pct?`<span>-${m.discount_pct}%</span>`:''}${m.description?`<p>${esc(m.description)}</p>`:''}</div>`).join('')}</div>`:'';
+ const banners=promos.length?`<div class="promobanners">${promos.map(m=>`<button class="promobanner ${m.image_url?'hasimg':''}" style="${m.image_url?`background-image:url('${esc(m.image_url)}')`:''}" onclick="goPromo(${m.target_category?`'${esc(m.target_category)}'`:'null'})"><span class="pbtx"><b>${esc(m.title)}</b>${m.discount_pct?`<span>-${m.discount_pct}%</span>`:''}${m.description?`<p>${esc(m.description)}</p>`:''}</span></button>`).join('')}</div>`:'';
  const grid=list.length?`<div class="prods">${list.slice(0,8).map(cardHTML).join('')}</div>`:(promos.length?'':'<div class="panel empty">Aucune promotion en ce moment.</div>');
  $('#promogrid').innerHTML=banners+grid;
 }

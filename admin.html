@@ -455,7 +455,7 @@ async function addPromo(){
  if(error){toast(error.message);return}
  toast('Promotion publiée 🎉');await render()
 }
-async function togglePromo(id,cur){await sb.from('promotions').update({active:!cur}).eq('id',id);await render()}
+async function togglePromo(id,cur){const{error}=await sb.from('promotions').update({active:!cur}).eq('id',id);if(error){toast(error.message);return}await render()}
 async function delPromo(id){if(confirm('Supprimer cette promotion ?')){await sb.from('promotions').delete().eq('id',id);await render()}}
 
 /* ---------- Avis clients ---------- */
@@ -477,7 +477,7 @@ async function addReview(){
  toast('Avis publié 🎉');await render()
 }
 async function editReview(id,field,val){const{error}=await sb.from('reviews').update({[field]:val}).eq('id',id);if(error)toast(error.message);await render()}
-async function toggleReview(id,cur){await sb.from('reviews').update({approved:!cur}).eq('id',id);await render()}
+async function toggleReview(id,cur){const{error}=await sb.from('reviews').update({approved:!cur}).eq('id',id);if(error){toast(error.message);return}await render()}
 async function delReview(id){if(confirm('Supprimer cet avis ?')){await sb.from('reviews').delete().eq('id',id);await render()}}
 
 /* ---------- Paramètres du site (catégories, sous-catégories) ---------- */

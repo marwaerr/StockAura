@@ -38,7 +38,8 @@ header{background:var(--card);position:sticky;top:0;z-index:10;box-shadow:0 1px 
 .hero p{max-width:420px;color:var(--mute);margin:0 0 18px;position:relative}
 .pill{display:inline-block;background:var(--teal-s);color:var(--teal);font-size:11px;font-weight:600;padding:5px 14px;border-radius:99px;position:relative}
 .promobanners{display:grid;gap:12px;margin-bottom:18px}
-.promobanner{all:unset;cursor:pointer;display:block;width:100%;box-sizing:border-box;background:linear-gradient(90deg,var(--pink),#ff8fa3);color:#fff;border-radius:14px;padding:16px 20px;position:relative;overflow:hidden;min-height:60px}
+.promobanner{all:unset;cursor:pointer;display:block;width:100%;box-sizing:border-box;background:linear-gradient(90deg,var(--pink),#ff8fa3);color:#fff;border-radius:14px;padding:16px 20px;position:relative;overflow:hidden;min-height:60px;transition:transform .2s,box-shadow .2s}
+.promobanner:hover{transform:scale(1.02);box-shadow:0 10px 26px rgba(0,0,0,.18)}
 .promobanner.hasimg{padding:0;aspect-ratio:2.43/1;min-height:auto;background-size:cover;background-position:center}
 .promobanner.hasimg .pbtx{position:relative;z-index:1;padding:16px 20px;background:linear-gradient(90deg,rgba(0,0,0,.45),transparent 70%);height:100%;display:flex;flex-direction:column;justify-content:center}
 .promobanner b{font-size:16px}
@@ -138,7 +139,7 @@ footer a:hover{color:var(--pink)}
  <a class="brand" href="#"><img src="logo.png" alt="Ola Bébé"><span>Ola Bébé</span></a>
  <nav class="gnav"><a href="#new">Nouveautés</a><a href="#promo">Promo</a>
  <div class="hasmenu"><a href="#cats">Bébé ▾</a><div class="megamenu" id="megamenu"><div id="menucats"></div></div></div>
- <a href="#" onclick="pickCat('Pour maman');document.getElementById('prods').scrollIntoView({behavior:'smooth'});return false">Maman</a><a href="#brands">Marques</a></nav>
+ <a href="#" onclick="pickCat(mamanCat());document.getElementById('prods').scrollIntoView({behavior:'smooth'});return false">Maman</a><a href="#brands">Marques</a></nav>
  <div class="ic"><button aria-label="Panier" onclick="openCart()">🛒<b id="fabn" style="display:none">0</b></button></div>
 </div></header>
 <section class="hero"><div class="w">
@@ -210,6 +211,7 @@ function renderRibbon(){
 }
 function combos(){return products.flatMap(p=>p.variants.map(v=>({p,v})))}
 function categories(){return cats.length?cats.map(c=>c.name):[...new Set(products.map(p=>p.category).filter(Boolean))]}
+function mamanCat(){const list=categories();return list.find(c=>c==='Pour maman')||list.find(c=>c==='Pour elle')||list[0]||null}
 function brands(){return brandRows.length?brandRows.map(b=>b.name):[...new Set(products.map(p=>p.brand).filter(Boolean))]}
 function pickCat(c){activeCat=activeCat===c?null:c;renderCats();renderGrid();document.getElementById('prods').scrollIntoView({behavior:'smooth'})}
 function pickBrand(b){activeBrand=activeBrand===b?null:b;renderBrands();renderGrid();document.getElementById('prods').scrollIntoView({behavior:'smooth'})}

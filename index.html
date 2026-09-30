@@ -24,6 +24,11 @@ header{background:var(--card);position:sticky;top:0;z-index:10;box-shadow:0 1px 
 .brand img{height:44px;width:auto;display:block}
 .brand span{font:700 22px/1 'Playfair Display',serif;color:var(--pink)}
 .gnav a{padding:6px 0;border-bottom:2px solid transparent}.gnav a:hover{color:var(--pink);border-color:var(--pink)}
+.hasmenu{position:relative}
+.megamenu{display:none;position:absolute;top:100%;left:50%;transform:translateX(-50%);background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.12);padding:10px;min-width:200px;max-width:280px;z-index:20;flex-direction:column;gap:2px;max-height:320px;overflow-y:auto}
+.hasmenu:hover .megamenu{display:flex}
+.megamenu a{display:block;padding:7px 10px;border-radius:8px;font-size:12.5px;white-space:nowrap;color:var(--ink)}
+.megamenu a:hover{background:var(--pink-s);color:var(--pink)}
 .ic button{all:unset;cursor:pointer;position:relative}
 .ic b{position:absolute;top:-8px;right:-10px;background:var(--pink);color:#fff;font:600 10px/16px Poppins;min-width:16px;text-align:center;border-radius:50%;padding:0 2px}
 .hero{position:relative;border-radius:0 0 40px 40px;overflow:hidden;background:var(--hero) url('hero-baby.jpg') right center/auto 100% no-repeat}
@@ -63,7 +68,7 @@ header{background:var(--card);position:sticky;top:0;z-index:10;box-shadow:0 1px 
 .slidebtn{all:unset;cursor:pointer;flex:none;width:34px;height:34px;border-radius:50%;background:var(--card);border:1px solid var(--line);display:grid;place-items:center;font-size:15px;color:var(--ink)}
 .slidebtn:hover{border-color:var(--pink);color:var(--pink)}
 .chips button.on,.chips button:hover{border-color:var(--pink);color:var(--pink)}
-.prods{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:16px}
+.prods{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:16px}
 .prod{background:var(--card);border-radius:14px;box-shadow:0 2px 12px rgba(0,0,0,.07);padding:14px;position:relative;display:flex;flex-direction:column}
 .prod .im{height:110px;border-radius:10px;display:grid;place-items:center;font-size:44px;margin-bottom:10px;background:var(--pink-s);overflow:hidden}
 .prod .im img{width:100%;height:100%;object-fit:cover;border-radius:10px}
@@ -116,7 +121,9 @@ footer a:hover{color:var(--pink)}
 <div class="top"><div class="w" id="ribbon"><span>🚚 Livraison rapide partout au Maroc</span><span>Une question ? Contactez-nous</span></div></div>
 <header><div class="w nav">
  <a class="brand" href="#"><img src="logo.png" alt="Ola Bébé"><span>Ola Bébé</span></a>
- <nav class="gnav"><a href="#new">Nouveautés</a><a href="#promo">Promo</a><a href="#cats">Bébé</a><a href="#" onclick="pickCat('Pour maman');document.getElementById('prods').scrollIntoView({behavior:'smooth'});return false">Maman</a><a href="#brands">Marques</a></nav>
+ <nav class="gnav"><a href="#new">Nouveautés</a><a href="#promo">Promo</a>
+ <div class="hasmenu"><a href="#cats">Bébé ▾</a><div class="megamenu" id="megamenu"><div id="menucats"></div></div></div>
+ <a href="#" onclick="pickCat('Pour maman');document.getElementById('prods').scrollIntoView({behavior:'smooth'});return false">Maman</a><a href="#brands">Marques</a></nav>
  <div class="ic"><button aria-label="Panier" onclick="openCart()">🛒<b id="fabn" style="display:none">0</b></button></div>
 </div></header>
 <section class="hero"><div class="w">
@@ -166,19 +173,20 @@ const LOW=5;
 const CAT_ICONS=['🧸','👶','🍼','🧴','👕','🎁','🛏️','🚼','🧦','📦'];
 const CAT_BG=['var(--pink-s)','var(--teal-s)','var(--yel)','var(--lav)'];
 const catIcon=name=>{let h=0;for(const c of (name||''))h=(h*31+c.charCodeAt(0))>>>0;return CAT_ICONS[h%CAT_ICONS.length]};
-let products=[],promos=[],reviews=[],cats=[],cart={},activeCat=null,activeBrand=null;
+let products=[],promos=[],reviews=[],cats=[],brandRows=[],cart={},activeCat=null,activeBrand=null;
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2400)}
 
 async function boot(){
- const [{data:p,error:e1},{data:pr},{data:rv},{data:ct}]=await Promise.all([
+ const [{data:p,error:e1},{data:pr},{data:rv},{data:ct},{data:br}]=await Promise.all([
   sb.from('products').select('id,name,price,photo_url,low_threshold,category,brand,is_new,on_sale,sale_price,variants(id,variant,color,quantity)').eq('visible',true).order('created_at'),
   sb.from('promotions').select('*').eq('active',true).order('created_at',{ascending:false}),
   sb.from('reviews').select('*').eq('approved',true).order('created_at',{ascending:false}).limit(12),
-  sb.from('categories').select('*').order('sort').order('name')
+  sb.from('categories').select('*').order('sort').order('name'),
+  sb.from('brands').select('*').order('name')
  ]);
  if(e1)toast(e1.message);
- products=p||[];promos=pr||[];reviews=rv||[];cats=ct||[];
- renderRibbon();renderNew();renderPromo();renderCats();renderBrands();renderGrid();renderReviews();
+ products=p||[];promos=pr||[];reviews=rv||[];cats=ct||[];brandRows=br||[];
+ renderRibbon();renderNew();renderPromo();renderCats();renderBrands();renderGrid();renderReviews();renderMenu();
 }
 function renderRibbon(){
  if(!promos.length)return;
@@ -186,9 +194,15 @@ function renderRibbon(){
 }
 function combos(){return products.flatMap(p=>p.variants.map(v=>({p,v})))}
 function categories(){return cats.length?cats.map(c=>c.name):[...new Set(products.map(p=>p.category).filter(Boolean))]}
-function brands(){return[...new Set(products.map(p=>p.brand).filter(Boolean))]}
+function brands(){return brandRows.length?brandRows.map(b=>b.name):[...new Set(products.map(p=>p.brand).filter(Boolean))]}
 function pickCat(c){activeCat=activeCat===c?null:c;renderCats();renderGrid();document.getElementById('prods').scrollIntoView({behavior:'smooth'})}
 function pickBrand(b){activeBrand=activeBrand===b?null:b;renderBrands();renderGrid();document.getElementById('prods').scrollIntoView({behavior:'smooth'})}
+function renderMenu(){
+ const el=$('#menucats');if(!el)return;
+ const list=categories();
+ el.innerHTML=list.length?list.map(c=>`<a href="#" onclick="pickCat('${esc(c)}');closeMenu();return false">${esc(c)}</a>`).join(''):'<span class="hint">Aucune catégorie</span>';
+}
+function closeMenu(){$('#megamenu')?.classList.remove('open')}
 function renderCats(){
  const list=categories();
  $('#catwrap').innerHTML=list.length?`<div class="cats">${list.map((c,i)=>{const row=cats.find(x=>x.name===c);return `<button class="cat ${activeCat===c?'on':''}" onclick="pickCat('${esc(c)}')"><div class="im" style="background:${row&&row.image_url?`center/cover url('${esc(row.image_url)}')`:CAT_BG[i%CAT_BG.length]}">${row&&row.image_url?'':catIcon(c)}<i>${catIcon(c)}</i></div><h3>${esc(c)}</h3></button>`}).join('')}</div>`:'<div class="panel empty">Les catégories apparaîtront ici dès que des produits en auront une.</div>';
@@ -196,7 +210,7 @@ function renderCats(){
 }
 function renderBrands(){
  const b=brands();
- $('#brandwrap').innerHTML=b.length?`<div class="slider-wrap"><button class="slidebtn" aria-label="Précédent" onclick="slideBrands(-1)">‹</button><div class="slider" id="brandslider">${b.map(m=>`<button class="chip ${activeBrand===m?'on':''}" onclick="pickBrand('${esc(m)}')">${esc(m)}</button>`).join('')}</div><button class="slidebtn" aria-label="Suivant" onclick="slideBrands(1)">›</button></div>`:'<div class="panel empty">Les marques apparaîtront ici dès que vous en indiquerez sur vos produits.</div>';
+ $('#brandwrap').innerHTML=b.length?`<div class="slider-wrap"><button class="slidebtn" aria-label="Précédent" onclick="slideBrands(-1)">‹</button><div class="slider" id="brandslider">${b.map(m=>{const row=brandRows.find(x=>x.name===m);return `<button class="chip ${activeBrand===m?'on':''}" onclick="pickBrand('${esc(m)}')">${row&&row.logo_url?`<img src="${esc(row.logo_url)}" alt="" style="height:16px;vertical-align:-3px;margin-right:6px;border-radius:3px">`:''}${esc(m)}</button>`}).join('')}</div><button class="slidebtn" aria-label="Suivant" onclick="slideBrands(1)">›</button></div>`:'<div class="panel empty">Les marques apparaîtront ici dès que vous en aurez ajouté.</div>';
 }
 function slideBrands(dir){const el=$('#brandslider');if(el)el.scrollBy({left:dir*220,behavior:'smooth'})}
 function stBadge(x){const th=x.p.low_threshold||LOW,st=x.v.quantity<=0?['Rupture','#c0392b']:x.v.quantity<=th?['Stock faible','#c98a1f']:['En stock','#3f9d63'];return `<span class="stb" style="color:${st[1]}">${st[0]}</span>`}

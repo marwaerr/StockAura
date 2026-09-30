@@ -138,8 +138,10 @@ footer a:hover{color:var(--pink)}
 <header><div class="w nav">
  <a class="brand" href="#"><img src="logo.png" alt="Ola Bébé"><span>Ola Bébé</span></a>
  <nav class="gnav"><a href="#new">Nouveautés</a><a href="#promo">Promo</a>
- <div class="hasmenu"><a href="#cats">Bébé ▾</a><div class="megamenu" id="megamenu"><div id="menucats"></div></div></div>
- <a href="#" onclick="pickCat(mamanCat());document.getElementById('prods').scrollIntoView({behavior:'smooth'});return false">Maman</a><a href="#brands">Marques</a></nav>
+ <div class="hasmenu"><a href="#" onclick="pickDept('Bébé');return false">Bébé ▾</a><div class="megamenu"><div id="menu_bebe"></div></div></div>
+ <div class="hasmenu"><a href="#" onclick="pickDept('Maman');return false">Maman ▾</a><div class="megamenu"><div id="menu_maman"></div></div></div>
+ <div class="hasmenu"><a href="#" onclick="pickDept('Parapharmacie');return false">Parapharmacie ▾</a><div class="megamenu"><div id="menu_para"></div></div></div>
+ <a href="#brands">Marques</a></nav>
  <div class="ic"><button aria-label="Panier" onclick="openCart()">🛒<b id="fabn" style="display:none">0</b></button></div>
 </div></header>
 <section class="hero"><div class="w">
@@ -190,19 +192,20 @@ const LOW=5;
 const CAT_ICONS=['🧸','👶','🍼','🧴','👕','🎁','🛏️','🚼','🧦','📦'];
 const CAT_BG=['var(--pink-s)','var(--teal-s)','var(--yel)','var(--lav)'];
 const catIcon=name=>{let h=0;for(const c of (name||''))h=(h*31+c.charCodeAt(0))>>>0;return CAT_ICONS[h%CAT_ICONS.length]};
-let products=[],promos=[],reviews=[],cats=[],brandRows=[],cart={},activeCat=null,activeBrand=null;
+let products=[],promos=[],reviews=[],cats=[],depts=[],brandRows=[],cart={},activeCat=null,activeBrand=null,activeDept=null;
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2400)}
 
 async function boot(){
- const [{data:p,error:e1},{data:pr},{data:rv},{data:ct},{data:br}]=await Promise.all([
+ const [{data:p,error:e1},{data:pr},{data:rv},{data:ct},{data:br},{data:dp}]=await Promise.all([
   sb.from('products').select('id,name,price,photo_url,low_threshold,category,brand,is_new,on_sale,sale_price,description,product_images(id,image_url),variants(id,variant,color,quantity)').eq('visible',true).order('created_at'),
   sb.from('promotions').select('*').eq('active',true).order('created_at',{ascending:false}),
   sb.from('reviews').select('*').eq('approved',true).order('created_at',{ascending:false}).limit(12),
   sb.from('categories').select('*').order('sort').order('name'),
-  sb.from('brands').select('*').order('name')
+  sb.from('brands').select('*').order('name'),
+  sb.from('departments').select('*').order('sort').order('name')
  ]);
  if(e1)toast(e1.message);
- products=p||[];promos=pr||[];reviews=rv||[];cats=ct||[];brandRows=br||[];
+ products=p||[];promos=pr||[];reviews=rv||[];cats=ct||[];brandRows=br||[];depts=dp||[];
  renderRibbon();renderNew();renderPromo();renderCats();renderBrands();renderGrid();renderReviews();renderMenu();
 }
 function renderRibbon(){
@@ -211,20 +214,25 @@ function renderRibbon(){
 }
 function combos(){return products.flatMap(p=>p.variants.map(v=>({p,v})))}
 function categories(){return cats.length?cats.map(c=>c.name):[...new Set(products.map(p=>p.category).filter(Boolean))]}
-function mamanCat(){const list=categories();return list.find(c=>c==='Pour maman')||list.find(c=>c==='Pour elle')||list[0]||null}
+function deptOfCat(catName){const row=cats.find(c=>c.name===catName);if(!row||!row.department_id)return null;return depts.find(d=>d.id===row.department_id)?.name||null}
+function categoriesByDept(dname){const d=depts.find(x=>x.name===dname);if(!d)return[];return cats.filter(c=>c.department_id===d.id).map(c=>c.name)}
 function brands(){return brandRows.length?brandRows.map(b=>b.name):[...new Set(products.map(p=>p.brand).filter(Boolean))]}
 function pickCat(c){activeCat=activeCat===c?null:c;renderCats();renderGrid();document.getElementById('prods').scrollIntoView({behavior:'smooth'})}
 function pickBrand(b){activeBrand=activeBrand===b?null:b;renderBrands();renderGrid();document.getElementById('prods').scrollIntoView({behavior:'smooth'})}
+function pickDept(dname){activeCat=null;activeDept=activeDept===dname?null:dname;renderCats();renderGrid();document.getElementById('cats').scrollIntoView({behavior:'smooth'})}
 function renderMenu(){
- const el=$('#menucats');if(!el)return;
- const list=categories();
- el.innerHTML=list.length?list.map(c=>`<a href="#" onclick="pickCat('${esc(c)}');closeMenu();return false">${esc(c)}</a>`).join(''):'<span class="hint">Aucune catégorie</span>';
+ const map={'Bébé':'menu_bebe','Maman':'menu_maman','Parapharmacie':'menu_para'};
+ for(const dname in map){
+  const el=document.getElementById(map[dname]);if(!el)continue;
+  const list=categoriesByDept(dname);
+  el.innerHTML=list.length?list.map(c=>`<a href="#" onclick="pickCat('${esc(c)}');return false">${esc(c)}</a>`).join(''):'<span class="hint">Aucune catégorie</span>';
+ }
 }
-function closeMenu(){$('#megamenu')?.classList.remove('open')}
 function renderCats(){
- const list=categories();
+ let list=categories();
+ if(activeDept)list=list.filter(c=>deptOfCat(c)===activeDept);
  $('#catwrap').innerHTML=list.length?`<div class="cats">${list.map((c,i)=>{const row=cats.find(x=>x.name===c);return `<button class="cat ${activeCat===c?'on':''}" onclick="pickCat('${esc(c)}')"><div class="im" style="background:${row&&row.image_url?`center/cover url('${esc(row.image_url)}')`:CAT_BG[i%CAT_BG.length]}">${row&&row.image_url?'':catIcon(c)}<i>${catIcon(c)}</i></div><h3>${esc(c)}</h3></button>`}).join('')}</div>`:'<div class="panel empty">Les catégories apparaîtront ici dès que des produits en auront une.</div>';
- const fc=$('#footcats');if(fc)fc.innerHTML=list.map(c=>`<a href="#cats" onclick="pickCat('${esc(c)}');return true">${esc(c)}</a>`).join('');
+ const fc=$('#footcats');if(fc)fc.innerHTML=categories().map(c=>`<a href="#cats" onclick="pickCat('${esc(c)}');return true">${esc(c)}</a>`).join('');
 }
 function renderBrands(){
  const b=brands();
@@ -234,6 +242,7 @@ function slideBrands(dir){const el=$('#brandslider');if(el)el.scrollBy({left:dir
 function stBadge(x){const th=x.p.low_threshold||LOW,st=x.v.quantity<=0?['Rupture','#c0392b']:x.v.quantity<=th?['Stock faible','#c98a1f']:['En stock','#3f9d63'];return `<span class="stb" style="color:${st[1]}">${st[0]}</span>`}
 function renderGrid(){
  let list=combos();
+ if(activeDept)list=list.filter(x=>deptOfCat(x.p.category)===activeDept);
  if(activeCat)list=list.filter(x=>x.p.category===activeCat);
  if(activeBrand)list=list.filter(x=>x.p.brand===activeBrand);
  $('#grid').innerHTML=list.length?`<div class="prods">${list.map(cardHTML).join('')}</div>`:'<div class="panel empty">Aucun produit disponible pour le moment.</div>';

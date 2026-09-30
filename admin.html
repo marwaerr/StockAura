@@ -251,8 +251,18 @@ async function addProduct(){
  if(e2){toast('Produit créé mais erreur sur les déclinaisons : '+e2.message);return}
  toast('Produit ajouté 🎉');await refresh()
 }
-async function toggleVisible(id,cur){const{error}=await sb.from('products').update({visible:!cur}).eq('id',id);if(error)toast(error.message);await refresh()}
-async function toggleFlag(id,field,cur){const{error}=await sb.from('products').update({[field]:!cur}).eq('id',id);if(error)toast(error.message);await refresh()}
+async function toggleVisible(id,cur){
+ const{error}=await sb.from('products').update({visible:!cur}).eq('id',id);
+ if(error){toast(error.message);await render();return}
+ const p=products.find(x=>x.id===id);if(p)p.visible=!cur;
+ await render();
+}
+async function toggleFlag(id,field,cur){
+ const{error}=await sb.from('products').update({[field]:!cur}).eq('id',id);
+ if(error){toast(error.message);await render();return}
+ const p=products.find(x=>x.id===id);if(p)p[field]=!cur;
+ await render();
+}
 
 
 /* ---------- Scan (caméra) ---------- */

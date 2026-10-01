@@ -29,14 +29,13 @@ const PERM={admin:['menu','home','products','entries','sales','returns','cash','
 let session=null, me=null, products=[], view='menu';
 let lang=localStorage.getItem('sa_lang')||'fr';
 document.documentElement.dir=lang==='ar'?'rtl':'ltr';
-if(localStorage.getItem('sa_theme')==='dark')document.documentElement.dataset.theme='dark';
+try{localStorage.removeItem('sa_theme')}catch(e){}
 const TR={
  fr:{menu:'Accueil',home:'Tableau de bord',products:'Produits',entries:'Entrées',sales:'Ventes',returns:'Retours',cash:'Caisse',history:'Historique',profit:'Profit',promotions:'Promotions',users:'Utilisateurs',logout:'Se déconnecter',hello:'Salut',add:'Ajouter',save:'Enregistrer',cancel:'Annuler',search:'Rechercher',name:'Nom',price:'Prix',qty:'Quantité',date:'Date',supplier:'Fournisseur',reference:'Référence',category:'Catégorie',subcategory:'Sous-catégorie',photo:'Photo',product:'Produit',barcode:'Code-barres',stock:'Stock'},
  ar:{menu:'الرئيسية',home:'لوحة القيادة',products:'المنتجات',entries:'المدخلات',sales:'المبيعات',returns:'المرتجعات',cash:'الصندوق',history:'السجل',profit:'الربح',promotions:'العروض',users:'المستخدمون',logout:'تسجيل الخروج',hello:'مرحبا',add:'إضافة',save:'حفظ',cancel:'إلغاء',search:'بحث',name:'الاسم',price:'السعر',qty:'الكمية',date:'التاريخ',supplier:'المورد',reference:'المرجع',category:'الفئة',subcategory:'الفئة الفرعية',photo:'صورة',product:'المنتج',barcode:'الباركود',stock:'المخزون'}
 };
 const t=k=>TR[lang][k]||TR.fr[k]||k;
 function setLang(l){lang=l;localStorage.setItem('sa_lang',l);document.documentElement.dir=l==='ar'?'rtl':'ltr';render()}
-function toggleTheme(){const r=document.documentElement,d=r.dataset.theme==='dark';r.dataset.theme=d?'light':'dark';localStorage.setItem('sa_theme',d?'light':'dark')}
 const displayName=n=>n&&n.includes('@')?n.split('@')[0]:n;
 let hist={type:'all',q:''}, entryLines=[{}], cart=[{}], saleMeta={disc:'pct',discVal:'',payment:'cash',given:''}, lastReceipt=null, ret={}, cm={amount:'',note:''}, prodQ='';
 
@@ -93,7 +92,7 @@ function renderNav(){
  $('#nav').innerHTML='<div class="logo"><img src="logo.png" alt=""><span>Ola Bébé</span></div><div class="me"><i>'+esc(displayName(me.name).slice(0,2).toUpperCase())+'</i><b>'+esc(displayName(me.name))+'</b><span>'+ROLE[me.role]+'</span></div>'
  +items.map(([k,l,i])=>`<button data-c="${k}" class="${view===k?'on':''}" onclick="go('${k}')">${ic(i)}${l}${k==='site'&&(pendingOrders+pendingReviews)>0?`<span class="navbadge">${pendingOrders+pendingReviews}</span>`:''}</button>`).join('')
  +`<div class="spacer"></div>
- <div class="row" style="margin:0 0 8px;gap:6px"><button class="tg" aria-label="Mode sombre" onclick="toggleTheme()" style="flex:none"></button><select onchange="setLang(this.value)" style="min-height:32px;padding:2px 6px"><option value="fr" ${lang==='fr'?'selected':''}>FR</option><option value="ar" ${lang==='ar'?'selected':''}>AR</option></select></div>
+ <div class="row" style="margin:0 0 8px;gap:6px"><select onchange="setLang(this.value)" style="min-height:32px;padding:2px 6px"><option value="fr" ${lang==='fr'?'selected':''}>FR</option><option value="ar" ${lang==='ar'?'selected':''}>AR</option></select></div>
  <button class="small" onclick="logout()">${t('logout')}</button>`;
 }
 async function go(v){view=v;await render()}

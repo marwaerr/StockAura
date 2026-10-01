@@ -87,6 +87,9 @@ header{background:var(--card);position:sticky;top:0;z-index:10;box-shadow:0 1px 
 .slider::-webkit-scrollbar{display:none}
 .slider .chip{all:unset;cursor:pointer;flex:none;scroll-snap-align:start;background:var(--card);border:1px solid var(--line);border-radius:99px;padding:12px 26px;font-size:14.5px;font-weight:600;white-space:nowrap}
 .slider .chip.on,.slider .chip:hover{border-color:var(--pink);color:var(--pink)}
+.slider .chip.logo{display:flex;align-items:center;justify-content:center;height:110px;min-width:160px;padding:10px 20px;border-radius:18px}
+.slider .chip.logo img{height:84px;width:auto;max-width:200px;object-fit:contain;display:block}
+@media(max-width:640px){.slider .chip.logo{height:88px;min-width:120px;padding:8px 14px}.slider .chip.logo img{height:64px;max-width:150px}}
 .slidebtn{all:unset;cursor:pointer;flex:none;width:34px;height:34px;border-radius:50%;background:var(--card);border:1px solid var(--line);display:grid;place-items:center;font-size:15px;color:var(--ink)}
 .slidebtn:hover{border-color:var(--pink);color:var(--pink)}
 .chips button.on,.chips button:hover{border-color:var(--pink);color:var(--pink)}
@@ -184,6 +187,17 @@ footer a:hover{color:var(--pink)}
  <a class="btn light" href="#prods">Voir les produits →</a><a class="btn o" href="#promo">Promotions</a>
 </div></section>
 <div class="w"><div id="shipbanner" class="shipbanner" style="display:none"></div></div>
+<script>
+/* Affiche tout de suite le dernier message connu, avant le chargement des autres scripts, pour éviter le clignotement */
+(function(){try{
+ var m=localStorage.getItem('ola_ship_msg');if(!m)return;
+ var el=document.getElementById('shipbanner');
+ var e=m.replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]});
+ el.dataset.msg=m;el.style.display='';
+ el.innerHTML='<img src="ship-baby.png" alt=""><div class="ship-track"><div class="ship-move">'+Array(7).join('<b>'+e+'</b>')+'</div></div>';
+ var mv=el.querySelector('.ship-move');mv.style.animationDuration=(mv.scrollWidth/2/25)+'s';
+}catch(x){}})();
+</script>
 <div class="w feat">
  <div><i style="background:var(--pink-m)">💳</i><span><b>Paiement flexible</b>Cash ou carte à la livraison</span></div>
  <div><i style="background:var(--teal-m)">🚚</i><span><b>Livraison rapide</b>Partout au Maroc</span></div>
@@ -284,7 +298,7 @@ function renderCats(){
 }
 function renderBrands(){
  const b=brands();
- $('#brandwrap').innerHTML=b.length?`<div class="slider-wrap"><button class="slidebtn" aria-label="Précédent" onclick="slideBrands(-1)">‹</button><div class="slider" id="brandslider">${b.map(m=>{const row=brandRows.find(x=>x.name===m);return `<button class="chip ${activeBrand===m?'on':''}" onclick="pickBrand('${esc(m)}')">${row&&row.logo_url?`<img src="${esc(row.logo_url)}" alt="" style="height:22px;vertical-align:-6px;margin-right:8px;border-radius:4px">`:''}${esc(m)}</button>`}).join('')}</div><button class="slidebtn" aria-label="Suivant" onclick="slideBrands(1)">›</button></div>`:'<div class="panel empty">Les marques apparaîtront ici dès que vous en aurez ajouté.</div>';
+ $('#brandwrap').innerHTML=b.length?`<div class="slider-wrap"><button class="slidebtn" aria-label="Précédent" onclick="slideBrands(-1)">‹</button><div class="slider" id="brandslider">${b.map(m=>{const row=brandRows.find(x=>x.name===m);return row&&row.logo_url?`<button class="chip logo ${activeBrand===m?'on':''}" aria-label="${esc(m)}" title="${esc(m)}" onclick="pickBrand('${esc(m)}')"><img src="${esc(row.logo_url)}" alt="${esc(m)}"></button>`:`<button class="chip ${activeBrand===m?'on':''}" onclick="pickBrand('${esc(m)}')">${esc(m)}</button>`}).join('')}</div><button class="slidebtn" aria-label="Suivant" onclick="slideBrands(1)">›</button></div>`:'<div class="panel empty">Les marques apparaîtront ici dès que vous en aurez ajouté.</div>';
 }
 function slideBrands(dir){const el=$('#brandslider');if(el)el.scrollBy({left:dir*220,behavior:'smooth'})}
 function stBadge(x){const th=x.p.low_threshold||LOW,st=x.v.quantity<=0?['Rupture','#c0392b']:x.v.quantity<=th?['Stock faible','#c98a1f']:['En stock','#3f9d63'];return `<span class="stb" style="color:${st[1]}">${st[0]}</span>`}
@@ -404,7 +418,6 @@ async function submitOrder(){
  if(error){toast(error.message);return}
  cart={};closeCart();updateFab();renderGrid();renderNew();renderPromo();toast('Commande envoyée 🎉 Nous vous contactons bientôt.');
 }
-try{const m=localStorage.getItem('ola_ship_msg');if(m)renderShipBanner(m)}catch(e){}
 boot();
 </script>
 </body>

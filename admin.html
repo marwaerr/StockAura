@@ -756,18 +756,64 @@ async function addDepartment(){
 }
 async function renameDepartment(id,name){name=name.trim();if(!name){toast('Le nom ne peut pas être vide');return}const{error}=await sb.from('departments').update({name}).eq('id',id);if(error){toast(error.message);return}await refreshCats()}
 async function delDepartment(id){if(confirm('Supprimer ce rayon ? Les catégories qui y sont rattachées resteront, mais sans rayon.')){await sb.from('departments').delete().eq('id',id);await refreshCats()}}
+/* ---- Modification (bouton Modifier) des rayons, catégories et sous-catégories ---- */
+let editingDept=null,editingCat=null,editingSub=null;
+function editDept(id){editingDept=editingDept===id?null:id;render(true)}
+function editCat(id){editingCat=editingCat===id?null:id;render(true)}
+function editSub(id){editingSub=editingSub===id?null:id;render(true)}
+async function saveDept(id){
+ const name=$('#edn').value.trim();if(!name){toast('Le nom ne peut pas être vide');return}
+ const{error}=await sb.from('departments').update({name}).eq('id',id);
+ if(error){toast(error.message);return}
+ editingDept=null;toast('Rayon mis à jour 🎉');await refreshCats()
+}
+function pickEditCatImg(inp){const f=inp.files[0],r=$('#ecip');if(!r)return;if(!f){r.innerHTML='';return}const rd=new FileReader();rd.onload=()=>r.innerHTML=`<img src="${rd.result}" alt="" style="width:64px;height:64px;border-radius:12px;object-fit:cover">`;rd.readAsDataURL(f)}
+async function saveCat(id){
+ const c=categories.find(x=>x.id===id);if(!c)return;
+ const name=$('#ecn').value.trim(),dept=$('#ecd').value||null,f=$('#eci').files[0];
+ if(!name){toast('Le nom ne peut pas être vide');return}
+ const patch={};
+ if(name!==c.name)patch.name=name;
+ if(dept!==(c.department_id||null))patch.department_id=dept;
+ if(f){const url=await uploadSiteImage(f,`cat-${id}-${Date.now()}.${(f.name.split('.').pop()||'jpg').toLowerCase()}`);if(!url)return;patch.image_url=url}
+ if(Object.keys(patch).length){
+  const{error}=await sb.from('categories').update(patch).eq('id',id);
+  if(error){toast(error.message);return}
+  if(patch.name)await sb.from('products').update({category:name}).eq('category',c.name);
+ }
+ editingCat=null;toast('Catégorie mise à jour 🎉');await refreshCats();if(patch.name)await refresh()
+}
+async function saveSub(id){
+ const sc=subcategories.find(x=>x.id===id);if(!sc)return;
+ const name=$('#esn').value.trim();if(!name){toast('Le nom ne peut pas être vide');return}
+ if(name!==sc.name){
+  const{error}=await sb.from('subcategories').update({name}).eq('id',id);
+  if(error){toast(error.message);return}
+  await sb.from('products').update({subcategory:name}).eq('subcategory',sc.name);
+ }
+ editingSub=null;toast('Sous-catégorie mise à jour 🎉');await refreshCats();await refresh()
+}
 function deptTab(){
- return `<p class="hint" style="margin:0 0 14px">Un rayon regroupe plusieurs catégories (ex. le rayon "Maman" peut contenir les catégories "Soins maman", "Tisanes"…).</p>
+ return `<p class="hint" style="margin:0 0 14px">Un rayon regroupe plusieurs catégories (ex. le rayon "Maman" peut contenir les catégories "Soins maman", "Tisanes"…). Les rayons s'affichent en haut du site.</p>
  <div class="card"><h2 style="margin-top:0">Nouveau rayon</h2>
  <div class="row"><input id="newdept" placeholder="Ex. Bébé"><button class="btn" onclick="addDepartment()">Ajouter</button></div></div>
- ${departments.length?`<div class="panel scroll"><table><tr><th>Nom</th><th class="n">Catégories</th><th class="n"></th></tr>${departments.map(d=>`<tr><td><input value="${esc(d.name)}" onchange="renameDepartment('${d.id}',this.value)" style="min-width:140px"></td><td class="n">${categories.filter(c=>c.department_id===d.id).length}</td><td class="n"><button class="btn ghost" onclick="delDepartment('${d.id}')">Supprimer</button></td></tr>`).join('')}</table></div>`:'<div class="panel empty">Aucun rayon pour le moment.</div>'}`;
+ ${departments.length?`<div class="panel scroll"><table><tr><th>Nom</th><th class="n">Catégories</th><th class="n"></th></tr>${departments.map(d=>editingDept===d.id
+  ?`<tr style="background:var(--bg)"><td><input id="edn" value="${esc(d.name)}" style="min-width:160px" onkeydown="if(event.key==='Enter')saveDept('${d.id}')"></td><td class="n">${categories.filter(c=>c.department_id===d.id).length}</td><td class="n"><button class="btn" onclick="saveDept('${d.id}')">Enregistrer</button> <button class="btn ghost" onclick="editingDept=null;render(true)">Annuler</button></td></tr>`
+  :`<tr><td><b>${esc(d.name)}</b></td><td class="n">${categories.filter(c=>c.department_id===d.id).length}</td><td class="n"><button class="btn ghost" onclick="editDept('${d.id}')">✏️ Modifier</button> <button class="btn ghost" onclick="delDepartment('${d.id}')">Supprimer</button></td></tr>`).join('')}</table></div>`:'<div class="panel empty">Aucun rayon pour le moment.</div>'}`;
 }
 function categoryCard(c){
- return `<div class="card"><div class="row" style="align-items:center;margin-bottom:10px">
- <label class="thl" title="Changer la photo">${c.image_url?`<img src="${esc(c.image_url)}" alt="" style="width:44px;height:44px;border-radius:10px;object-fit:cover">`:'<span class="th">📦</span>'}<input type="file" accept="image/*" hidden onchange="setCategoryImage('${c.id}',this)"></label>
- <input value="${esc(c.name)}" onchange="renameCategory('${c.id}',this.value)" style="flex:1;font-weight:800;min-width:120px">
- <select onchange="setCategoryDept('${c.id}',this.value)" style="max-width:140px"><option value="">— Rayon —</option>${departments.map(d=>`<option value="${d.id}" ${c.department_id===d.id?'selected':''}>${esc(d.name)}</option>`).join('')}</select>
- <button class="btn ghost" onclick="delCategory('${c.id}')">Supprimer</button></div>
+ const dname=departments.find(d=>d.id===c.department_id)?.name;
+ const img=c.image_url?`<img src="${esc(c.image_url)}" alt="" style="width:52px;height:52px;border-radius:12px;object-fit:cover">`:'<span class="th" style="width:52px;height:52px">📦</span>';
+ const head=editingCat===c.id
+  ?`<div style="border:2px solid var(--acc);border-radius:12px;padding:14px;margin-bottom:12px"><h3 style="margin:0 0 12px">Modifier la catégorie</h3>
+   <div class="grid"><div><label for="ecn">Nom</label><input id="ecn" value="${esc(c.name)}"></div><div><label for="ecd">Rayon</label><select id="ecd"><option value="">— Sans rayon —</option>${departments.map(d=>`<option value="${d.id}" ${c.department_id===d.id?'selected':''}>${esc(d.name)}</option>`).join('')}</select></div></div>
+   <div class="row" style="align-items:flex-end"><div><label>Image actuelle</label>${img}</div><div style="flex:1;min-width:180px"><label for="eci">Nouvelle image (facultatif)</label><input id="eci" type="file" accept="image/*" onchange="pickEditCatImg(this)"></div><div id="ecip"></div></div>
+   <div class="row" style="margin:0"><button class="btn" onclick="saveCat('${c.id}')">Enregistrer</button><button class="btn ghost" onclick="editingCat=null;render(true)">Annuler</button></div></div>`
+  :`<div class="row" style="align-items:center;margin-bottom:10px">${img}
+   <div style="flex:1;min-width:120px"><b style="font-size:17px">${esc(c.name)}</b><br><span class="hint" style="margin:0">${dname?'Rayon : '+esc(dname):'Sans rayon'}</span></div>
+   <button class="btn ghost" onclick="editCat('${c.id}')">✏️ Modifier</button><button class="btn ghost" onclick="delCategory('${c.id}')">Supprimer</button></div>`;
+ return `<div class="card">${head}
+ <label style="margin-bottom:8px">Sous-catégories</label>
  <div class="row">${subcatChips(c.id)}</div>
  <div class="row" style="margin-top:10px"><input id="sub_${c.id}" placeholder="Nouvelle sous-catégorie"><button class="btn ghost" onclick="addSubcategory('${c.id}','sub_${c.id}')">Ajouter</button></div></div>`;
 }
@@ -777,7 +823,8 @@ function subcatChips(catId){
  return subs.map(subChip).join('');
 }
 function subChip(s){
- return `<span class="pill" style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px"><input value="${esc(s.name)}" onchange="renameSubcategory('${s.id}',this.value)" style="border:0;background:transparent;padding:0;min-height:auto;width:${Math.max(6,s.name.length)}ch;color:inherit;font:inherit"><a href="#" onclick="delSubcategory('${s.id}');return false" style="color:var(--bad)">✕</a></span>`;
+ if(editingSub===s.id)return `<span style="display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap"><input id="esn" value="${esc(s.name)}" style="width:180px;min-height:36px" onkeydown="if(event.key==='Enter')saveSub('${s.id}')"><button class="btn" style="padding:7px 12px" onclick="saveSub('${s.id}')">Enregistrer</button><button class="btn ghost" style="padding:7px 12px" onclick="editingSub=null;render(true)">Annuler</button></span>`;
+ return `<span class="pill" style="display:inline-flex;align-items:center;gap:8px;padding:5px 6px 5px 12px;font-size:14px">${esc(s.name)}<button onclick="editSub('${s.id}')" title="Modifier" aria-label="Modifier ${esc(s.name)}" style="all:unset;cursor:pointer;padding:0 4px">✏️</button><button onclick="delSubcategory('${s.id}')" title="Supprimer" aria-label="Supprimer ${esc(s.name)}" style="all:unset;cursor:pointer;padding:0 4px;color:var(--bad);font-weight:800">✕</button></span>`;
 }
 function deptOptions(){return departments.map(d=>`<option value="${d.id}">${esc(d.name)}</option>`).join('')}
 function catTab(){

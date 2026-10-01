@@ -603,11 +603,14 @@ async function setOrderStatus(id,status){
  await checkPendingOrders(false);await refresh()
 }
 async function generalTab(){
- const{data}=await sb.from('site_settings').select('*').in('key',['shipping_message','shipping_threshold','stats']);
+ const{data}=await sb.from('site_settings').select('*').in('key',['shipping_message','shipping_threshold','stats','phone']);
+ const phone=data?.find(r=>r.key==='phone')?.value||'0660704987';
  const stats=parseStats(data?.find(r=>r.key==='stats')?.value);
  const msg=data?.find(r=>r.key==='shipping_message')?.value||'';
  const th=data?.find(r=>r.key==='shipping_threshold')?.value||'';
- return `<div class="card"><h2 style="margin-top:0">Message de livraison</h2><p class="hint" style="margin:0 0 12px">Affiché sur le site avec une petite illustration, et sous forme de barre de progression dans le panier (ex. "Plus que 50 DH pour la livraison gratuite !").</p>
+ return `<div class="card"><h2 style="margin-top:0">Numéro de téléphone</h2><p class="hint" style="margin:0 0 12px">Affiché sur le site (section « Nous trouver » et pied de page) et utilisé par le bouton WhatsApp.</p>
+ <div class="row"><input id="sitephone" type="tel" value="${esc(phone)}" placeholder="06XXXXXXXX" style="max-width:260px"><button class="btn" onclick="savePhone()">Enregistrer</button></div></div>
+ <div class="card"><h2 style="margin-top:0">Message de livraison</h2><p class="hint" style="margin:0 0 12px">Affiché sur le site avec une petite illustration, et sous forme de barre de progression dans le panier (ex. "Plus que 50 DH pour la livraison gratuite !").</p>
  <label for="shipmsg">Message</label><input id="shipmsg" value="${esc(msg)}" style="margin-bottom:12px" placeholder="Livraison gratuite dès 200 DH d'achat">
  <label for="shipth">Seuil de livraison gratuite (DH, facultatif — active la barre de progression dans le panier)</label><input id="shipth" type="number" min="0" step="any" value="${esc(th)}" style="margin-bottom:12px">
  <button class="btn" onclick="saveShippingMsg()">Enregistrer</button></div>
@@ -622,6 +625,13 @@ async function saveStats(){
  const{error}=await sb.from('site_settings').upsert({key:'stats',value:JSON.stringify(list)});
  if(error){toast(error.message);return}
  toast('Chiffres enregistrés 🎉')
+}
+async function savePhone(){
+ const d=$('#sitephone').value.replace(/\D/g,'');
+ if(!/^(0[5-7]\d{8}|212[5-7]\d{8})$/.test(d)){toast('Numéro invalide (ex. 0660704987)');return}
+ const{error}=await sb.from('site_settings').upsert({key:'phone',value:d});
+ if(error){toast(error.message);return}
+ toast('Numéro enregistré 🎉')
 }
 async function saveShippingMsg(){
  const value=$('#shipmsg').value.trim(),threshold=$('#shipth').value.trim();

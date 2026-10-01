@@ -299,8 +299,39 @@ function renderCats(){
 function renderBrands(){
  const b=brands();
  $('#brandwrap').innerHTML=b.length?`<div class="slider-wrap"><button class="slidebtn" aria-label="Précédent" onclick="slideBrands(-1)">‹</button><div class="slider" id="brandslider">${b.map(m=>{const row=brandRows.find(x=>x.name===m);return row&&row.logo_url?`<button class="chip logo ${activeBrand===m?'on':''}" aria-label="${esc(m)}" title="${esc(m)}" onclick="pickBrand('${esc(m)}')"><img src="${esc(row.logo_url)}" alt="${esc(m)}"></button>`:`<button class="chip ${activeBrand===m?'on':''}" onclick="pickBrand('${esc(m)}')">${esc(m)}</button>`}).join('')}</div><button class="slidebtn" aria-label="Suivant" onclick="slideBrands(1)">›</button></div>`:'<div class="panel empty">Les marques apparaîtront ici dès que vous en aurez ajouté.</div>';
+ startBrandScroll();
 }
-function slideBrands(dir){const el=$('#brandslider');if(el)el.scrollBy({left:dir*220,behavior:'smooth'})}
+function slideBrands(dir){const el=$('#brandslider');if(!el)return;brandHoldUntil=performance.now()+900;el.scrollBy({left:dir*220,behavior:'smooth'})}
+/* Défilement automatique et lent des marques vers la droite */
+let brandRAF=null,brandHoldUntil=0;
+const BRAND_SPEED=20; // pixels par seconde : plus petit = plus lent
+async function startBrandScroll(){
+ cancelAnimationFrame(brandRAF);
+ const el=$('#brandslider');if(!el)return;
+ if(window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+ const imgs=[...el.querySelectorAll('img')];
+ await Promise.all(imgs.map(i=>i.complete?0:new Promise(r=>{i.onload=i.onerror=r})));
+ if(!el.isConnected)return;
+ el.style.scrollSnapType='none';el.style.scrollBehavior='auto';
+ const orig=[...el.children],setW=el.scrollWidth;
+ if(!orig.length||!setW)return;
+ const copies=Math.max(3,Math.ceil(el.clientWidth*2/setW)+2);
+ for(let k=1;k<copies;k++)orig.forEach(n=>{const c=n.cloneNode(true);c.setAttribute('aria-hidden','true');c.tabIndex=-1;el.appendChild(c)});
+ const unit=el.scrollWidth/copies;
+ let pos=unit,paused=false,last=performance.now();
+ el.scrollLeft=pos;
+ el.onmouseenter=()=>paused=true;
+ el.onmouseleave=()=>{paused=false};
+ el.ontouchstart=()=>{paused=true};
+ el.ontouchend=()=>{brandHoldUntil=performance.now()+1500;paused=false};
+ const step=now=>{
+  const dt=Math.min(0.1,(now-last)/1000);last=now;
+  if(paused||now<brandHoldUntil||document.hidden){pos=el.scrollLeft}
+  else{pos-=BRAND_SPEED*dt;if(pos<=unit*0.5)pos+=unit;if(pos>=unit*(copies-1.5))pos-=unit;el.scrollLeft=pos}
+  brandRAF=requestAnimationFrame(step);
+ };
+ brandRAF=requestAnimationFrame(step);
+}
 function stBadge(x){const th=x.p.low_threshold||LOW,st=x.v.quantity<=0?['Rupture','#c0392b']:x.v.quantity<=th?['Stock faible','#c98a1f']:['En stock','#3f9d63'];return `<span class="stb" style="color:${st[1]}">${st[0]}</span>`}
 function renderGrid(){
  let list=combos();

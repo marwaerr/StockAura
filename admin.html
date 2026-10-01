@@ -47,19 +47,24 @@ const isAdmin=()=>me&&me.role==='admin';
 async function boot(){
  const {data}=await sb.auth.getSession();
  session=data.session;
- if(session){await loadMe();await checkPendingOrders(true)}
+ if(session){await loadMe();await checkPendingOrders(true);await checkPendingReviews(true)}
  render();
 }
-sb.auth.onAuthStateChange(async(_e,s)=>{session=s;if(s){await loadMe();await checkPendingOrders(true)}else me=null;render()});
+sb.auth.onAuthStateChange(async(_e,s)=>{session=s;if(s){await loadMe();await checkPendingOrders(true);await checkPendingReviews(true)}else me=null;render()});
 async function loadMe(){
  const{data,error}=await sb.from('profiles').select('*').eq('id',session.user.id).single();
  if(!error)me=data;
 }
-let pendingOrders=0;
+let pendingOrders=0,pendingReviews=0;
 async function checkPendingOrders(notify){
  const{count}=await sb.from('orders').select('id',{count:'exact',head:true}).eq('status','nouveau');
  pendingOrders=count||0;
  if(notify&&pendingOrders>0&&isAdmin())toast(pendingOrders+' nouvelle(s) commande(s) à valider 🛍️');
+}
+async function checkPendingReviews(notify){
+ const{count}=await sb.from('reviews').select('id',{count:'exact',head:true}).eq('approved',false);
+ pendingReviews=count||0;
+ if(notify&&pendingReviews>0&&isAdmin())toast(pendingReviews+' nouvel(aux) avis à modérer ⭐');
 }
 async function doLogin(){
  const idf=$('#li').value.trim(),pw=$('#lp').value;
@@ -86,7 +91,7 @@ const ic=n=>`<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke=
 function renderNav(){
  const items=[['menu',t('menu'),'home'],['home',t('home'),'trend'],['products',t('products'),'box'],['entries',t('entries'),'in'],['sales',t('sales'),'cart'],['returns',t('returns'),'in'],['cash',t('cash'),'wallet'],['history',t('history'),'list'],['profit',t('profit'),'trend'],['site','Site','megaphone'],['users',t('users'),'users']].filter(x=>can(x[0]));
  $('#nav').innerHTML='<div class="logo">Ola Bébé</div><div class="me"><i>'+esc(displayName(me.name).slice(0,2).toUpperCase())+'</i><b>'+esc(displayName(me.name))+'</b><span>'+ROLE[me.role]+'</span></div>'
- +items.map(([k,l,i])=>`<button data-c="${k}" class="${view===k?'on':''}" onclick="go('${k}')">${ic(i)}${l}${k==='site'&&pendingOrders>0?`<span class="navbadge">${pendingOrders}</span>`:''}</button>`).join('')
+ +items.map(([k,l,i])=>`<button data-c="${k}" class="${view===k?'on':''}" onclick="go('${k}')">${ic(i)}${l}${k==='site'&&(pendingOrders+pendingReviews)>0?`<span class="navbadge">${pendingOrders+pendingReviews}</span>`:''}</button>`).join('')
  +`<div class="spacer"></div>
  <div class="row" style="margin:0 0 8px;gap:6px"><button class="tg" aria-label="Mode sombre" onclick="toggleTheme()" style="flex:none"></button><select onchange="setLang(this.value)" style="min-height:32px;padding:2px 6px"><option value="fr" ${lang==='fr'?'selected':''}>FR</option><option value="ar" ${lang==='ar'?'selected':''}>AR</option></select></div>
  <button class="small" onclick="logout()">${t('logout')}</button>`;
@@ -544,7 +549,7 @@ let newPromoImg=null;
 function pickPromoImg(inp){newPromoImg=inp.files[0]||null;const r=$('#mimgp');if(!r)return;if(newPromoImg){const rd=new FileReader();rd.onload=()=>r.innerHTML=`<img src="${rd.result}" alt="" style="width:100%;max-width:320px;aspect-ratio:2.43/1;object-fit:cover;border-radius:10px;margin-top:8px">`;rd.readAsDataURL(newPromoImg)}else r.innerHTML=''}
 let siteTab='promotions';
 function siteNav(){
- const tabs=[['orders','Commandes'+(pendingOrders>0?` (${pendingOrders})`:'')],['promotions','Promotions'],['reviews','Avis'],['departments','Rayons'],['categories','Catégories'],['brands','Marques'],['general','Général']];
+ const tabs=[['orders','Commandes'+(pendingOrders>0?` (${pendingOrders})`:'')],['promotions','Promotions'],['reviews','Avis'+(pendingReviews>0?` (${pendingReviews})`:'')],['departments','Rayons'],['categories','Catégories'],['brands','Marques'],['general','Général']];
  return `<div class="seg" style="margin-bottom:18px;flex-wrap:wrap">${tabs.map(([k,l])=>`<button class="${siteTab===k?'on':''}" onclick="siteTab='${k}';render()">${l}</button>`).join('')}</div>`;
 }
 async function site(){
@@ -597,24 +602,55 @@ async function saveShippingMsg(){
  if(error){toast(error.message);return}
  toast('Message enregistré 🎉')
 }
+function onPromoCatChange(){
+ const cat=categories.find(c=>c.name===$('#mcat').value);
+ const subs=cat?subcategories.filter(s=>s.category_id===cat.id):[];
+ $('#msubwrap').innerHTML=`<select id="msub"><option value="">— Aucune —</option>${subs.map(s=>`<option value="${esc(s.name)}">${esc(s.name)}</option>`).join('')}</select>`;
+}
+let promoMode='category',promoProductLines=[{}];
+function setPromoMode(m){promoMode=m;render(true)}
+function promoProductLine(i,l){
+ return `<div class="line" style="grid-template-columns:1fr 36px"><select onchange="promoProductLines[${i}].id=this.value"><option value="">— Choisir un produit —</option>${products.map(p=>`<option value="${p.id}" ${l.id===p.id?'selected':''}>${esc(p.name)}</option>`).join('')}</select><button onclick="promoProductLines.splice(${i},1);render(true)">✕</button></div>`;
+}
 async function promoTab(){
- const{data}=await sb.from('promotions').select('*').order('created_at',{ascending:false});
+ const{data}=await sb.from('promotions').select('*').order('sort');
  const list=data||[];
  return `<div class="card"><h2 style="margin-top:0">Nouvelle promotion</h2>
  <p class="hint" style="margin:0 0 12px">Préparez une bannière : au clic, le visiteur est amené vers la sélection de produits de votre choix.</p>
  <div class="grid"><div><label for="mt">Titre</label><input id="mt" placeholder="Black Friday 🔥"></div><div><label for="md">% de remise (indicatif)</label><input id="md" type="number" min="0" max="100"></div></div>
  <div class="grid"><div><label for="ms">Du</label><input id="ms" type="date"></div><div><label for="me2">Au</label><input id="me2" type="date"></div></div>
  <label for="mdesc">Description</label><input id="mdesc" style="margin-bottom:14px" placeholder="Jusqu'à -30% sur tout le magasin !">
- <div class="grid"><div><label for="mimg">Image de la bannière (facultatif — format recommandé 1200 × 494 px, paysage)</label><input id="mimg" type="file" accept="image/*" onchange="pickPromoImg(this)"><div id="mimgp"></div></div><div><label for="mcat">Emmène vers la catégorie</label><select id="mcat"><option value="">— Toute la boutique —</option>${categories.map(c=>`<option value="${esc(c.name)}">${esc(c.name)}</option>`).join('')}</select></div></div>
- <button class="btn" onclick="addPromo()">Publier</button></div>
- ${list.length?`<div class="panel scroll"><table><tr><th></th><th>Titre</th><th>Cible</th><th>Période</th><th class="n">Actif</th><th class="n"></th></tr>${list.map(m=>`<tr><td>${m.image_url?`<img src="${esc(m.image_url)}" alt="" style="width:44px;height:44px;border-radius:10px;object-fit:cover">`:'<span class="th">🎁</span>'}</td><td>${esc(m.title)}</td><td>${esc(m.target_category||'Toute la boutique')}</td><td>${fd(m.starts_at)||'—'} → ${fd(m.ends_at)||'—'}</td><td class="n"><button class="tgsw ${m.active?'on':''}" onclick="this.classList.toggle('on');togglePromo('${m.id}',${m.active})"></button></td><td class="n"><button class="btn ghost" onclick="delPromo('${m.id}')">Supprimer</button></td></tr>`).join('')}</table></div>`:'<div class="panel empty">Aucune promotion.</div>'}`;
+ <div class="grid"><div><label for="mimg">Image de la bannière (facultatif — format recommandé 1200 × 494 px, paysage)</label><input id="mimg" type="file" accept="image/*" onchange="pickPromoImg(this)"><div id="mimgp"></div></div><div><label for="mlayout">Mise en page</label><select id="mlayout"><option value="full">Pleine largeur</option><option value="half">Côte à côte (choisissez "moitié" sur deux promotions)</option></select></div></div>
+ <label>Emmène vers</label>
+ <div class="seg" style="margin-bottom:12px"><button class="${promoMode==='category'?'on':''}" onclick="setPromoMode('category')">Une catégorie</button><button class="${promoMode==='products'?'on':''}" onclick="setPromoMode('products')">Des produits spécifiques</button></div>
+ ${promoMode==='category'?`<div class="grid"><div><label for="mcat">Catégorie</label><select id="mcat" onchange="onPromoCatChange()"><option value="">— Toute la boutique —</option>${categories.map(c=>`<option value="${esc(c.name)}">${esc(c.name)}</option>`).join('')}</select></div><div><label for="msub">Sous-catégorie (facultatif)</label><div id="msubwrap"><select id="msub"><option value="">— Aucune —</option></select></div></div></div>`
+ :`${promoProductLines.map(promoProductLine).join('')}<div class="row"><button class="btn ghost" onclick="promoProductLines.push({});render(true)">Ajouter une ligne</button></div>`}
+ <button class="btn" style="margin-top:12px" onclick="addPromo()">Publier</button></div>
+ ${list.length?`<div class="panel scroll"><table><tr><th></th><th>Titre</th><th>Cible</th><th>Mise en page</th><th class="n">Actif</th><th class="n"></th></tr>${list.map((m,i)=>`<tr><td>${m.image_url?`<img src="${esc(m.image_url)}" alt="" style="width:44px;height:44px;border-radius:10px;object-fit:cover">`:'<span class="th">🎁</span>'}</td><td>${esc(m.title)}</td><td>${esc(m.target_category||'Toute la boutique')}${m.target_subcategory?' : '+esc(m.target_subcategory):''}</td><td>${m.layout==='half'?'Moitié':'Pleine largeur'}</td><td class="n"><button class="tgsw ${m.active?'on':''}" onclick="this.classList.toggle('on');togglePromo('${m.id}',${m.active})"></button></td><td class="n"><button class="btn ghost" onclick="movePromo('${m.id}',-1)" ${i===0?'disabled':''}>↑</button> <button class="btn ghost" onclick="movePromo('${m.id}',1)" ${i===list.length-1?'disabled':''}>↓</button> <button class="btn ghost" onclick="delPromo('${m.id}')">Supprimer</button></td></tr>`).join('')}</table></div>`:'<div class="panel empty">Aucune promotion.</div>'}`;
 }
 async function addPromo(){
  const title=$('#mt').value.trim();if(!title){toast('Indiquez un titre');return}
- const{data:p,error}=await sb.from('promotions').insert({title,description:$('#mdesc').value.trim()||null,discount_pct:parseFloat($('#md').value)||null,starts_at:$('#ms').value||null,ends_at:$('#me2').value||null,target_category:$('#mcat').value||null,active:true}).select().single();
+ const{count:promoCount}=await sb.from('promotions').select('id',{count:'exact',head:true});
+ const targetCategory=promoMode==='category'?($('#mcat').value||null):null;
+ const targetSub=promoMode==='category'?($('#msub')?.value||null):null;
+ const{data:p,error}=await sb.from('promotions').insert({title,description:$('#mdesc').value.trim()||null,discount_pct:parseFloat($('#md').value)||null,starts_at:$('#ms').value||null,ends_at:$('#me2').value||null,target_category:targetCategory,target_subcategory:targetSub,layout:$('#mlayout').value,sort:promoCount||0,active:true}).select().single();
  if(error){toast(error.message);return}
  if(newPromoImg){const url=await uploadSiteImage(newPromoImg,`promo-${p.id}.${(newPromoImg.name.split('.').pop()||'jpg').toLowerCase()}`);if(url)await sb.from('promotions').update({image_url:url}).eq('id',p.id);newPromoImg=null}
+ if(promoMode==='products'){
+  const ids=promoProductLines.filter(l=>l.id).map(l=>({promotion_id:p.id,product_id:l.id}));
+  if(ids.length)await sb.from('promotion_products').insert(ids);
+ }
+ promoProductLines=[{}];promoMode='category';
  toast('Promotion publiée 🎉');await render()
+}
+async function movePromo(id,dir){
+ const{data}=await sb.from('promotions').select('id,sort').order('sort');
+ const list=data||[];const idx=list.findIndex(m=>m.id===id);const j=idx+dir;
+ if(idx<0||j<0||j>=list.length)return;
+ const a=list[idx],b=list[j];
+ await sb.from('promotions').update({sort:b.sort}).eq('id',a.id);
+ await sb.from('promotions').update({sort:a.sort}).eq('id',b.id);
+ await render()
 }
 async function togglePromo(id,cur){const{error}=await sb.from('promotions').update({active:!cur}).eq('id',id);if(error){toast(error.message);return}await render()}
 async function delPromo(id){if(confirm('Supprimer cette promotion ?')){await sb.from('promotions').delete().eq('id',id);await render()}}
@@ -637,7 +673,7 @@ async function addReview(){
  toast('Avis publié 🎉');await render()
 }
 async function editReview(id,field,val){const{error}=await sb.from('reviews').update({[field]:val}).eq('id',id);if(error)toast(error.message);await render()}
-async function toggleReview(id,cur){const{error}=await sb.from('reviews').update({approved:!cur}).eq('id',id);if(error){toast(error.message);return}await render()}
+async function toggleReview(id,cur){const{error}=await sb.from('reviews').update({approved:!cur}).eq('id',id);if(error){toast(error.message);return}await checkPendingReviews(false);await render()}
 async function delReview(id){if(confirm('Supprimer cet avis ?')){await sb.from('reviews').delete().eq('id',id);await render()}}
 
 /* ---------- Catégories et sous-catégories ---------- */

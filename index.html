@@ -54,8 +54,8 @@ header{background:var(--card);position:sticky;top:0;z-index:10;box-shadow:0 1px 
 .shipbanner{display:flex;align-items:center;gap:14px;background:var(--teal-s);border-radius:18px;padding:8px 24px 8px 8px;margin:10px 0;overflow:hidden;width:100%}
 .shipbanner img{width:40px;height:40px;object-fit:contain;flex:none;display:block}
 .ship-track{flex:1;overflow:hidden;position:relative;min-width:0}
-.ship-move{display:flex;white-space:nowrap;animation:shipScroll 25s linear infinite;width:max-content;padding-left:100%}
-.ship-move b{font-size:13px;color:var(--ink);font-weight:700}
+.ship-move{display:flex;white-space:nowrap;animation:shipScroll 45s linear infinite;width:max-content;padding-left:100%}
+.ship-move b{font-size:13px;color:var(--ink);font-weight:700}.ship-move b+b{margin-left:180px}
 .shipprog{background:var(--nl);border-radius:14px;padding:12px 14px;margin-bottom:16px;font-size:12.5px}
 .shipprog .bar{height:8px;border-radius:99px;background:var(--line);overflow:hidden;margin-bottom:8px}
 .shipprog .fill{height:100%;background:linear-gradient(90deg,var(--teal),var(--pink));border-radius:99px;transition:width .3s}
@@ -248,7 +248,7 @@ async function boot(){
 function renderShipBanner(msg){
  const el=$('#shipbanner');if(!el)return;
  if(!msg){el.style.display='none';return}
- el.innerHTML=`<img src="ship-baby.png" alt=""><div class="ship-track"><div class="ship-move"><b>${esc(msg)}</b></div></div>`;
+ el.innerHTML=`<img src="ship-baby.png" alt=""><div class="ship-track"><div class="ship-move"><b>${esc(msg)}</b><b>${esc(msg)}</b></div></div>`;
 }
 function renderRibbon(){
  if(!promos.length)return;

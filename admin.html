@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Ola Bébé — Gestion</title>
+<link rel="icon" type="image/png" href="logo.png">
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
@@ -90,7 +91,7 @@ const ic=n=>`<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke=
 /* ---------- Nav ---------- */
 function renderNav(){
  const items=[['menu',t('menu'),'home'],['home',t('home'),'trend'],['products',t('products'),'box'],['entries',t('entries'),'in'],['sales',t('sales'),'cart'],['returns',t('returns'),'in'],['cash',t('cash'),'wallet'],['history',t('history'),'list'],['profit',t('profit'),'trend'],['site','Site','megaphone'],['users',t('users'),'users']].filter(x=>can(x[0]));
- $('#nav').innerHTML='<div class="logo">Ola Bébé</div><div class="me"><i>'+esc(displayName(me.name).slice(0,2).toUpperCase())+'</i><b>'+esc(displayName(me.name))+'</b><span>'+ROLE[me.role]+'</span></div>'
+ $('#nav').innerHTML='<div class="logo"><img src="logo.png" alt=""><span>Ola Bébé</span></div><div class="me"><i>'+esc(displayName(me.name).slice(0,2).toUpperCase())+'</i><b>'+esc(displayName(me.name))+'</b><span>'+ROLE[me.role]+'</span></div>'
  +items.map(([k,l,i])=>`<button data-c="${k}" class="${view===k?'on':''}" onclick="go('${k}')">${ic(i)}${l}${k==='site'&&(pendingOrders+pendingReviews)>0?`<span class="navbadge">${pendingOrders+pendingReviews}</span>`:''}</button>`).join('')
  +`<div class="spacer"></div>
  <div class="row" style="margin:0 0 8px;gap:6px"><button class="tg" aria-label="Mode sombre" onclick="toggleTheme()" style="flex:none"></button><select onchange="setLang(this.value)" style="min-height:32px;padding:2px 6px"><option value="fr" ${lang==='fr'?'selected':''}>FR</option><option value="ar" ${lang==='ar'?'selected':''}>AR</option></select></div>

@@ -47,11 +47,16 @@ header{background:var(--card);position:sticky;top:0;z-index:10;box-shadow:0 1px 
 .promobanner p{margin:6px 0 0;font-size:12.5px;opacity:.9}
 .btn{display:inline-block;border-radius:99px;padding:11px 24px;font-weight:600;font-size:12px;border:1px solid var(--pink);background:var(--pink);color:#fff;cursor:pointer;font-family:Poppins}
 .btn.o{background:var(--card);color:var(--ink);border-color:var(--line);margin-left:8px}
-.shipbanner{display:flex;align-items:center;gap:18px;background:var(--teal-s);border-radius:99px;padding:10px 24px 10px 14px;margin:10px 0;overflow:hidden}
-.shipbanner svg{width:56px;height:38px;flex:none}
+.shipbanner{display:flex;align-items:center;gap:12px;background:var(--teal-s);border-radius:99px;padding:6px 20px 6px 6px;margin:10px 0;overflow:hidden;max-width:560px}
+.shipbanner img{width:40px;height:40px;object-fit:contain;flex:none;display:block}
 .ship-track{flex:1;overflow:hidden;position:relative;min-width:0}
 .ship-move{display:flex;white-space:nowrap;animation:shipScroll 13s linear infinite;width:max-content}
-.ship-move b{font-size:14.5px;color:var(--ink);font-weight:700;padding-right:70px}
+.ship-move b{font-size:13px;color:var(--ink);font-weight:700;padding-right:50px}
+.shipprog{background:var(--nl);border-radius:14px;padding:12px 14px;margin-bottom:16px;font-size:12.5px}
+.shipprog .bar{height:8px;border-radius:99px;background:var(--line);overflow:hidden;margin-bottom:8px}
+.shipprog .fill{height:100%;background:linear-gradient(90deg,var(--teal),var(--pink));border-radius:99px;transition:width .3s}
+.shipprog span{color:var(--ink)}.shipprog b{color:var(--pink)}
+.shipprog.done{background:var(--teal-s);color:var(--teal);font-weight:700;text-align:center;padding:12px}
 @keyframes shipScroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
 @media(prefers-reduced-motion:reduce){.ship-move{animation:none}}
 .feat{display:grid;grid-template-columns:repeat(4,1fr);padding:30px 0}
@@ -93,6 +98,8 @@ header{background:var(--card);position:sticky;top:0;z-index:10;box-shadow:0 1px 
 .pm-info{padding:26px;overflow-y:auto}
 .pm-info h2{font-size:19px;margin:6px 0}
 .pm-desc{color:var(--mute);font-size:13px;line-height:1.6;margin:10px 0 16px;white-space:pre-line}
+.pm-add{width:100%;padding:13px;font-size:13.5px;border-radius:12px;margin-top:6px;box-shadow:0 6px 16px rgba(241,93,125,.3)}
+.pm-add:hover{background:#ff8fa3}
 @media(max-width:640px){.pm-box{grid-template-columns:1fr;max-height:none}.pm-img{min-height:200px}}
 .prod .im img{width:100%;height:100%;object-fit:cover;border-radius:10px}
 .br{font-size:10px;color:var(--teal);font-weight:600;letter-spacing:.5px;text-transform:uppercase}
@@ -200,7 +207,7 @@ const LOW=5;
 const CAT_ICONS=['🧸','👶','🍼','🧴','👕','🎁','🛏️','🚼','🧦','📦'];
 const CAT_BG=['var(--pink-s)','var(--teal-s)','var(--yel)','var(--lav)'];
 const catIcon=name=>{let h=0;for(const c of (name||''))h=(h*31+c.charCodeAt(0))>>>0;return CAT_ICONS[h%CAT_ICONS.length]};
-let products=[],promos=[],reviews=[],cats=[],depts=[],brandRows=[],cart={},activeCat=null,activeBrand=null,activeDept=null;
+let products=[],promos=[],reviews=[],cats=[],depts=[],brandRows=[],cart={},activeCat=null,activeBrand=null,activeDept=null,shipThreshold=null;
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2400)}
 
 async function boot(){
@@ -211,27 +218,18 @@ async function boot(){
   sb.from('categories').select('*').order('sort').order('name'),
   sb.from('brands').select('*').order('name'),
   sb.from('departments').select('*').order('sort').order('name'),
-  sb.from('site_settings').select('*').eq('key','shipping_message').single()
+  sb.from('site_settings').select('*').in('key',['shipping_message','shipping_threshold'])
  ]);
  if(e1)toast(e1.message);
  products=p||[];promos=pr||[];reviews=rv||[];cats=ct||[];brandRows=br||[];depts=dp||[];
- renderRibbon();renderNew();renderPromo();renderCats();renderBrands();renderGrid();renderReviews();renderMenu();renderShipBanner(ss?.value);
+ const shipMsg=ss?.find(r=>r.key==='shipping_message')?.value||'';
+ shipThreshold=parseFloat(ss?.find(r=>r.key==='shipping_threshold')?.value)||null;
+ renderRibbon();renderNew();renderPromo();renderCats();renderBrands();renderGrid();renderReviews();renderMenu();renderShipBanner(shipMsg);
 }
-const VAN_SVG=`<svg viewBox="0 0 130 80" fill="none" xmlns="http://www.w3.org/2000/svg">
-<rect x="14" y="30" width="62" height="28" rx="7" fill="#5bb5a2"/>
-<path d="M76 38h16l10 11v9H76z" fill="#3f9d87"/>
-<rect x="84" y="41" width="12" height="8" rx="1.5" fill="#eaf7f4"/>
-<circle cx="32" cy="60" r="8" fill="#2f2b33"/><circle cx="32" cy="60" r="3" fill="#fff"/>
-<circle cx="86" cy="60" r="8" fill="#2f2b33"/><circle cx="86" cy="60" r="3" fill="#fff"/>
-<rect x="20" y="36" width="20" height="4" rx="2" fill="#fff" opacity=".6"/>
-<circle cx="8" cy="41" r="7" fill="#ffd9b3"/>
-<path d="M2 66c0-9 5-16 10-16s10 7 10 16" fill="#f15d7d"/>
-<path d="M10 52l4 8M10 52l-3 9" stroke="#f15d7d" stroke-width="4" stroke-linecap="round"/>
-</svg>`;
 function renderShipBanner(msg){
  const el=$('#shipbanner');if(!el)return;
  if(!msg){el.style.display='none';return}
- el.innerHTML=`${VAN_SVG}<div class="ship-track"><div class="ship-move"><b>${esc(msg)}</b><b>${esc(msg)}</b></div></div>`;
+ el.innerHTML=`<img src="ship-baby.png" alt=""><div class="ship-track"><div class="ship-move"><b>${esc(msg)}</b><b>${esc(msg)}</b></div></div>`;
 }
 function renderRibbon(){
  if(!promos.length)return;
@@ -310,7 +308,7 @@ function openProduct(pid,vid){
     <h2>${esc(p.name)}${v.variant!=='Standard'?' — '+esc(v.variant):''}${v.color&&v.color!=='Standard'?' '+esc(v.color):''}</h2>
     <div style="margin:8px 0">${priceHTML(p)}${stBadge({p,v})}</div>
     ${p.description?`<p class="pm-desc">${esc(p.description)}</p>`:''}
-    ${v.quantity<=0?'<p class="hint">Rupture de stock</p>':inCart?`<div class="stepper" style="max-width:160px"><button onclick="changeQty('${v.id}',-1);openProduct('${pid}','${vid}')">−</button><b>${inCart}</b><button onclick="changeQty('${v.id}',1);openProduct('${pid}','${vid}')">+</button></div>`:`<button class="add" style="max-width:220px" onclick="addToCart('${v.id}');openProduct('${pid}','${vid}')">Ajouter au panier</button>`}
+    ${v.quantity<=0?'<p class="hint">Rupture de stock</p>':inCart?`<div class="stepper" style="max-width:220px;margin-top:6px"><button onclick="changeQty('${v.id}',-1);openProduct('${pid}','${vid}')">−</button><b>${inCart}</b><button onclick="changeQty('${v.id}',1);openProduct('${pid}','${vid}')">+</button></div>`:`<button class="add pm-add" onclick="addToCart('${v.id}');openProduct('${pid}','${vid}')">🛒 Ajouter au panier</button>`}
    </div></div>`;
  };
  window._pmActive=(i)=>{active=i;renderModal()};
@@ -336,9 +334,17 @@ function cartTotal(){return cartLines().reduce((s,l)=>s+l.q*(l.p.on_sale&&l.p.sa
 function openCart(){renderCart();$('#drawer').classList.add('open');$('#ov').classList.add('open')}
 function closeCart(){$('#drawer').classList.remove('open');$('#ov').classList.remove('open')}
 function changeQty(vid,d){cart[vid]=(cart[vid]||0)+d;if(cart[vid]<=0)delete cart[vid];updateFab();renderGrid();renderNew();renderPromo();if($('#drawer').classList.contains('open'))renderCart()}
+function shipProgressHTML(){
+ if(!shipThreshold||shipThreshold<=0)return'';
+ const total=cartTotal(),left=shipThreshold-total;
+ if(left<=0)return `<div class="shipprog done">🎉 Livraison gratuite débloquée !</div>`;
+ const pct=Math.min(100,Math.round(total/shipThreshold*100));
+ return `<div class="shipprog"><div class="bar"><div class="fill" style="width:${pct}%"></div></div><span>Plus que <b>${dh(left)}</b> pour la livraison gratuite !</span></div>`;
+}
 function renderCart(){
  const lines=cartLines();
  $('#drawer').innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"><h2 style="margin:0;font-size:18px">Votre panier</h2><button class="btn o" style="padding:6px 14px" onclick="closeCart()">✕</button></div>
+ ${lines.length?shipProgressHTML():''}
  ${lines.length?lines.map(l=>`<div class="citem"><div><b>${esc(l.p.name)}</b><br><span style="color:var(--mute)">${esc(l.v.variant)}${l.v.color&&l.v.color!=='Standard'?' · '+esc(l.v.color):''}</span></div><div style="display:flex;align-items:center;gap:6px"><button class="qtybtn" onclick="changeQty('${l.v.id}',-1)">−</button>${l.q}<button class="qtybtn" onclick="changeQty('${l.v.id}',1)">+</button></div></div>`).join(''):'<p style="color:var(--mute)">Votre panier est vide.</p>'}
  ${lines.length?`<div class="total" style="margin:16px 0">Total : ${dh(cartTotal())}</div>
  <label for="cn">Nom</label><input id="cn">

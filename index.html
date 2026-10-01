@@ -37,7 +37,9 @@ header{background:var(--card);position:sticky;top:0;z-index:10;box-shadow:0 1px 
 .hero h1{font-size:clamp(26px,5vw,38px);line-height:1.22;margin:12px 0 10px;position:relative}.hero h1 span{color:var(--pink)}
 .hero p{max-width:420px;color:var(--mute);margin:0 0 18px;position:relative}
 .pill{display:inline-block;background:var(--teal-s);color:var(--teal);font-size:11px;font-weight:600;padding:5px 14px;border-radius:99px;position:relative}
-.promobanners{display:grid;gap:12px;margin-bottom:18px}
+.promobanners{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:18px}
+.promobanners .promobanner{flex:1 1 100%}
+.promobanners .promobanner.half{flex:1 1 calc(50% - 6px)}
 .promobanner{all:unset;cursor:pointer;display:block;width:100%;box-sizing:border-box;background:linear-gradient(90deg,var(--pink),#ff8fa3);color:#fff;border-radius:14px;padding:16px 20px;position:relative;overflow:hidden;min-height:60px;transition:transform .2s,box-shadow .2s}
 .promobanner:hover{transform:scale(1.02);box-shadow:0 10px 26px rgba(0,0,0,.18)}
 .promobanner.hasimg{padding:0;aspect-ratio:2.43/1;min-height:auto;background-size:cover;background-position:center}
@@ -149,6 +151,7 @@ footer a:hover{color:var(--pink)}
 .total{font-size:16px;font-weight:700}
 #toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:9px 18px;border-radius:99px;font-weight:600;font-size:12.5px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:30}
 #toast.show{opacity:1}
+@media(max-width:600px){.promobanners .promobanner.half{flex:1 1 100%}}
 @media(max-width:900px){.feat,.prods{grid-template-columns:repeat(2,1fr)}.feat div{border:0}.fg{grid-template-columns:1fr 1fr}.gnav{display:none}.top span:last-child{display:none}.hero:before{background:linear-gradient(90deg,var(--hero) 55%,rgba(248,246,247,.75) 78%,transparent 95%)}.hero .w{max-width:none}}
 </style>
 </head>
@@ -212,13 +215,13 @@ const LOW=5;
 const CAT_ICONS=['🧸','👶','🍼','🧴','👕','🎁','🛏️','🚼','🧦','📦'];
 const CAT_BG=['var(--pink-s)','var(--teal-s)','var(--yel)','var(--lav)'];
 const catIcon=name=>{let h=0;for(const c of (name||''))h=(h*31+c.charCodeAt(0))>>>0;return CAT_ICONS[h%CAT_ICONS.length]};
-let products=[],promos=[],reviews=[],cats=[],depts=[],brandRows=[],cart={},activeCat=null,activeBrand=null,activeDept=null,shipThreshold=null;
+let products=[],promos=[],reviews=[],cats=[],depts=[],brandRows=[],cart={},activeCat=null,activeBrand=null,activeDept=null,shipThreshold=null,activeSub=null,activePromoProducts=null;
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2400)}
 
 async function boot(){
  const [{data:p,error:e1},{data:pr},{data:rv},{data:ct},{data:br},{data:dp},{data:ss}]=await Promise.all([
-  sb.from('products').select('id,name,price,photo_url,low_threshold,category,brand,is_new,on_sale,sale_price,description,product_images(id,image_url),variants(id,variant,color,quantity)').eq('visible',true).order('created_at'),
-  sb.from('promotions').select('*').eq('active',true).order('created_at',{ascending:false}),
+  sb.from('products').select('id,name,price,photo_url,low_threshold,category,subcategory,brand,is_new,on_sale,sale_price,description,product_images(id,image_url),variants(id,variant,color,quantity)').eq('visible',true).order('created_at'),
+  sb.from('promotions').select('*, promotion_products(product_id)').eq('active',true).order('sort'),
   sb.from('reviews').select('*').eq('approved',true).order('created_at',{ascending:false}).limit(12),
   sb.from('categories').select('*').order('sort').order('name'),
   sb.from('brands').select('*').order('name'),
@@ -245,8 +248,8 @@ function categories(){return cats.length?cats.map(c=>c.name):[...new Set(product
 function deptOfCat(catName){const row=cats.find(c=>c.name===catName);if(!row||!row.department_id)return null;return depts.find(d=>d.id===row.department_id)?.name||null}
 function categoriesByDept(dname){const d=depts.find(x=>x.name===dname);if(!d)return[];return cats.filter(c=>c.department_id===d.id).map(c=>c.name)}
 function brands(){return brandRows.length?brandRows.map(b=>b.name):[...new Set(products.map(p=>p.brand).filter(Boolean))]}
-function pickCat(c){activeCat=activeCat===c?null:c;renderCats();renderGrid();document.getElementById('prods').scrollIntoView({behavior:'smooth'})}
-function pickBrand(b){activeBrand=activeBrand===b?null:b;renderBrands();renderGrid();document.getElementById('prods').scrollIntoView({behavior:'smooth'})}
+function pickCat(c){activeSub=null;activePromoProducts=null;activeCat=activeCat===c?null:c;renderCats();renderGrid();document.getElementById('prods').scrollIntoView({behavior:'smooth'})}
+function pickBrand(b){activePromoProducts=null;activeBrand=activeBrand===b?null:b;renderBrands();renderGrid();document.getElementById('prods').scrollIntoView({behavior:'smooth'})}
 function pickDept(dname){activeCat=null;activeDept=activeDept===dname?null:dname;renderCats();renderGrid();document.getElementById('cats').scrollIntoView({behavior:'smooth'})}
 function renderMenu(){
  const map={'Bébé':'menu_bebe','Maman':'menu_maman','Parapharmacie':'menu_para'};
@@ -270,8 +273,10 @@ function slideBrands(dir){const el=$('#brandslider');if(el)el.scrollBy({left:dir
 function stBadge(x){const th=x.p.low_threshold||LOW,st=x.v.quantity<=0?['Rupture','#c0392b']:x.v.quantity<=th?['Stock faible','#c98a1f']:['En stock','#3f9d63'];return `<span class="stb" style="color:${st[1]}">${st[0]}</span>`}
 function renderGrid(){
  let list=combos();
+ if(activePromoProducts)list=list.filter(x=>activePromoProducts.includes(x.p.id));
  if(activeDept)list=list.filter(x=>deptOfCat(x.p.category)===activeDept);
  if(activeCat)list=list.filter(x=>x.p.category===activeCat);
+ if(activeSub)list=list.filter(x=>x.p.subcategory===activeSub);
  if(activeBrand)list=list.filter(x=>x.p.brand===activeBrand);
  $('#grid').innerHTML=list.length?`<div class="prods">${list.map(cardHTML).join('')}</div>`:'<div class="panel empty">Aucun produit disponible pour le moment.</div>';
 }
@@ -279,10 +284,20 @@ function renderNew(){
  const list=combos().filter(x=>x.p.is_new);
  $('#newgrid').innerHTML=list.length?`<div class="prods">${list.slice(0,8).map(cardHTML).join('')}</div>`:'<div class="panel empty">Aucune nouveauté pour le moment.</div>';
 }
-function goPromo(cat){if(cat)pickCat(cat);const el=document.getElementById('prods');if(el)el.scrollIntoView({behavior:'smooth'})}
+function goPromo(id){
+ const m=promos.find(x=>x.id===id);
+ activeBrand=null;activeCat=null;activeSub=null;activePromoProducts=null;
+ if(m){
+  const pids=(m.promotion_products||[]).map(pp=>pp.product_id);
+  if(pids.length)activePromoProducts=pids;
+  else{if(m.target_category)activeCat=m.target_category;if(m.target_subcategory)activeSub=m.target_subcategory}
+ }
+ renderCats();renderBrands();renderGrid();
+ const el=document.getElementById('prods');if(el)el.scrollIntoView({behavior:'smooth'})
+}
 function renderPromo(){
  const list=combos().filter(x=>x.p.on_sale);
- const banners=promos.length?`<div class="promobanners">${promos.map(m=>m.image_url?`<button class="promobanner hasimg" style="background-image:url('${esc(m.image_url)}')" aria-label="${esc(m.title)}" onclick="goPromo(${m.target_category?`'${esc(m.target_category)}'`:'null'})"></button>`:`<button class="promobanner" onclick="goPromo(${m.target_category?`'${esc(m.target_category)}'`:'null'})"><span class="pbtx"><b>${esc(m.title)}</b>${m.discount_pct?`<span>-${m.discount_pct}%</span>`:''}${m.description?`<p>${esc(m.description)}</p>`:''}</span></button>`).join('')}</div>`:'';
+ const banners=promos.length?`<div class="promobanners">${promos.map(m=>m.image_url?`<button class="promobanner hasimg ${m.layout==='half'?'half':''}" style="background-image:url('${esc(m.image_url)}')" aria-label="${esc(m.title)}" onclick="goPromo('${m.id}')"></button>`:`<button class="promobanner ${m.layout==='half'?'half':''}" onclick="goPromo('${m.id}')"><span class="pbtx"><b>${esc(m.title)}</b>${m.discount_pct?`<span>-${m.discount_pct}%</span>`:''}${m.description?`<p>${esc(m.description)}</p>`:''}</span></button>`).join('')}</div>`:'';
  const grid=list.length?`<div class="prods">${list.slice(0,8).map(cardHTML).join('')}</div>`:(promos.length?'':'<div class="panel empty">Aucune promotion en ce moment.</div>');
  $('#promogrid').innerHTML=banners+grid;
 }

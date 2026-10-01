@@ -47,6 +47,9 @@ header{background:var(--card);position:sticky;top:0;z-index:10;box-shadow:0 1px 
 .promobanner p{margin:6px 0 0;font-size:12.5px;opacity:.9}
 .btn{display:inline-block;border-radius:99px;padding:11px 24px;font-weight:600;font-size:12px;border:1px solid var(--pink);background:var(--pink);color:#fff;cursor:pointer;font-family:Poppins}
 .btn.o{background:var(--card);color:var(--ink);border-color:var(--line);margin-left:8px}
+.shipbanner{display:flex;align-items:center;gap:16px;background:var(--teal-s);border-radius:18px;padding:14px 22px;margin:10px 0}
+.shipbanner svg{width:64px;height:44px;flex:none}
+.shipbanner b{display:block;color:var(--ink);font-size:14.5px}
 .feat{display:grid;grid-template-columns:repeat(4,1fr);padding:30px 0}
 .feat div{display:flex;gap:12px;align-items:center;font-size:11px;color:var(--mute);line-height:1.45;padding:0 16px;border-left:1px solid var(--line)}.feat div:first-child{border:0}
 .feat i{font-style:normal;width:44px;height:44px;border-radius:50%;display:grid;place-items:center;font-size:19px;flex:none}.feat b{display:block;color:var(--ink);font-size:12px}
@@ -150,6 +153,7 @@ footer a:hover{color:var(--pink)}
  <p>Découvrez notre sélection de produits pour bébé et maman, ajoutez vos articles au panier et passez votre commande en toute simplicité.</p>
  <a class="btn" href="#prods">Voir les produits →</a><a class="btn o" href="#promo">Promotions</a>
 </div></section>
+<div class="w"><div id="shipbanner" class="shipbanner"></div></div>
 <div class="w feat">
  <div><i style="background:var(--pink-m)">💳</i><span><b>Paiement flexible</b>Cash ou carte à la livraison</span></div>
  <div><i style="background:var(--teal-m)">🚚</i><span><b>Livraison rapide</b>Partout au Maroc</span></div>
@@ -196,17 +200,34 @@ let products=[],promos=[],reviews=[],cats=[],depts=[],brandRows=[],cart={},activ
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2400)}
 
 async function boot(){
- const [{data:p,error:e1},{data:pr},{data:rv},{data:ct},{data:br},{data:dp}]=await Promise.all([
+ const [{data:p,error:e1},{data:pr},{data:rv},{data:ct},{data:br},{data:dp},{data:ss}]=await Promise.all([
   sb.from('products').select('id,name,price,photo_url,low_threshold,category,brand,is_new,on_sale,sale_price,description,product_images(id,image_url),variants(id,variant,color,quantity)').eq('visible',true).order('created_at'),
   sb.from('promotions').select('*').eq('active',true).order('created_at',{ascending:false}),
   sb.from('reviews').select('*').eq('approved',true).order('created_at',{ascending:false}).limit(12),
   sb.from('categories').select('*').order('sort').order('name'),
   sb.from('brands').select('*').order('name'),
-  sb.from('departments').select('*').order('sort').order('name')
+  sb.from('departments').select('*').order('sort').order('name'),
+  sb.from('site_settings').select('*').eq('key','shipping_message').single()
  ]);
  if(e1)toast(e1.message);
  products=p||[];promos=pr||[];reviews=rv||[];cats=ct||[];brandRows=br||[];depts=dp||[];
- renderRibbon();renderNew();renderPromo();renderCats();renderBrands();renderGrid();renderReviews();renderMenu();
+ renderRibbon();renderNew();renderPromo();renderCats();renderBrands();renderGrid();renderReviews();renderMenu();renderShipBanner(ss?.value);
+}
+const VAN_SVG=`<svg viewBox="0 0 130 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+<rect x="14" y="30" width="62" height="28" rx="7" fill="#5bb5a2"/>
+<path d="M76 38h16l10 11v9H76z" fill="#3f9d87"/>
+<rect x="84" y="41" width="12" height="8" rx="1.5" fill="#eaf7f4"/>
+<circle cx="32" cy="60" r="8" fill="#2f2b33"/><circle cx="32" cy="60" r="3" fill="#fff"/>
+<circle cx="86" cy="60" r="8" fill="#2f2b33"/><circle cx="86" cy="60" r="3" fill="#fff"/>
+<rect x="20" y="36" width="20" height="4" rx="2" fill="#fff" opacity=".6"/>
+<circle cx="8" cy="41" r="7" fill="#ffd9b3"/>
+<path d="M2 66c0-9 5-16 10-16s10 7 10 16" fill="#f15d7d"/>
+<path d="M10 52l4 8M10 52l-3 9" stroke="#f15d7d" stroke-width="4" stroke-linecap="round"/>
+</svg>`;
+function renderShipBanner(msg){
+ const el=$('#shipbanner');if(!el)return;
+ if(!msg){el.style.display='none';return}
+ el.innerHTML=`${VAN_SVG}<b>${esc(msg)}</b>`;
 }
 function renderRibbon(){
  if(!promos.length)return;

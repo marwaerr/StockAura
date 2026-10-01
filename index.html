@@ -47,9 +47,13 @@ header{background:var(--card);position:sticky;top:0;z-index:10;box-shadow:0 1px 
 .promobanner p{margin:6px 0 0;font-size:12.5px;opacity:.9}
 .btn{display:inline-block;border-radius:99px;padding:11px 24px;font-weight:600;font-size:12px;border:1px solid var(--pink);background:var(--pink);color:#fff;cursor:pointer;font-family:Poppins}
 .btn.o{background:var(--card);color:var(--ink);border-color:var(--line);margin-left:8px}
-.shipbanner{display:flex;align-items:center;gap:16px;background:var(--teal-s);border-radius:18px;padding:14px 22px;margin:10px 0}
-.shipbanner svg{width:64px;height:44px;flex:none}
-.shipbanner b{display:block;color:var(--ink);font-size:14.5px}
+.shipbanner{display:flex;align-items:center;gap:18px;background:var(--teal-s);border-radius:99px;padding:10px 24px 10px 14px;margin:10px 0;overflow:hidden}
+.shipbanner svg{width:56px;height:38px;flex:none}
+.ship-track{flex:1;overflow:hidden;position:relative;min-width:0}
+.ship-move{display:flex;white-space:nowrap;animation:shipScroll 13s linear infinite;width:max-content}
+.ship-move b{font-size:14.5px;color:var(--ink);font-weight:700;padding-right:70px}
+@keyframes shipScroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+@media(prefers-reduced-motion:reduce){.ship-move{animation:none}}
 .feat{display:grid;grid-template-columns:repeat(4,1fr);padding:30px 0}
 .feat div{display:flex;gap:12px;align-items:center;font-size:11px;color:var(--mute);line-height:1.45;padding:0 16px;border-left:1px solid var(--line)}.feat div:first-child{border:0}
 .feat i{font-style:normal;width:44px;height:44px;border-radius:50%;display:grid;place-items:center;font-size:19px;flex:none}.feat b{display:block;color:var(--ink);font-size:12px}
@@ -133,7 +137,7 @@ footer a:hover{color:var(--pink)}
 .total{font-size:16px;font-weight:700}
 #toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:9px 18px;border-radius:99px;font-weight:600;font-size:12.5px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:30}
 #toast.show{opacity:1}
-@media(max-width:900px){.feat,.prods{grid-template-columns:repeat(2,1fr)}.feat div{border:0}.fg{grid-template-columns:1fr 1fr}.gnav{display:none}.top span:last-child{display:none}.hero{background-image:none}.hero:before{display:none}.hero .w{max-width:none}}
+@media(max-width:900px){.feat,.prods{grid-template-columns:repeat(2,1fr)}.feat div{border:0}.fg{grid-template-columns:1fr 1fr}.gnav{display:none}.top span:last-child{display:none}.hero:before{background:linear-gradient(90deg,var(--hero) 55%,rgba(248,246,247,.75) 78%,transparent 95%)}.hero .w{max-width:none}}
 </style>
 </head>
 <body>
@@ -227,7 +231,7 @@ const VAN_SVG=`<svg viewBox="0 0 130 80" fill="none" xmlns="http://www.w3.org/20
 function renderShipBanner(msg){
  const el=$('#shipbanner');if(!el)return;
  if(!msg){el.style.display='none';return}
- el.innerHTML=`${VAN_SVG}<b>${esc(msg)}</b>`;
+ el.innerHTML=`${VAN_SVG}<div class="ship-track"><div class="ship-move"><b>${esc(msg)}</b><b>${esc(msg)}</b></div></div>`;
 }
 function renderRibbon(){
  if(!promos.length)return;
@@ -343,9 +347,12 @@ function renderCart(){
  <label for="cnote">Note (facultatif)</label><input id="cnote" style="margin-bottom:14px">
  <button class="btn" style="width:100%" onclick="submitOrder()">Valider la commande</button>`:''}`;
 }
+function isValidPhone(p){const digits=p.replace(/[\s.\-()]/g,'');return /^(\+212|0)[5-7]\d{8}$/.test(digits)}
 async function submitOrder(){
  const name=$('#cn').value.trim(),phone=$('#cp').value.trim();
- if(!name||!phone){toast('Indiquez votre nom et votre téléphone');return}
+ if(!name){toast('Indiquez votre nom');return}
+ if(!phone){toast('Indiquez votre téléphone');return}
+ if(!isValidPhone(phone)){toast('Numéro de téléphone invalide (ex. 06XXXXXXXX)');return}
  const items=cartLines().map(l=>({variant_id:l.v.id,qty:l.q,price:l.p.on_sale&&l.p.sale_price?l.p.sale_price:l.p.price}));
  const{error}=await sb.rpc('record_order',{p_customer_name:name,p_phone:phone,p_address:$('#ca').value.trim()||null,p_note:$('#cnote').value.trim()||null,p_items:items});
  if(error){toast(error.message);return}

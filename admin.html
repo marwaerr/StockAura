@@ -8,7 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body class="loggedout">
 <div class="app">
 <nav id="nav"></nav>
 <main id="main"><p class="sub">Chargement…</p></main>
@@ -76,11 +76,10 @@ async function doLogin(){
  if(error){toast('Identifiant ou mot de passe incorrect');$('#lbtn').textContent='Se connecter'}
 }
 function loginView(){
- return `<div class="login-wrap"><h1>Ola Bébé 🎉</h1><p class="sub">Connectez-vous pour accéder à votre boutique.</p>
+ return `<div class="login-wrap"><div class="login-brand"><img src="logo.png" alt=""><h1>Ola Bébé 🎉</h1></div><p class="sub">Connectez-vous pour accéder à votre boutique.</p>
  <div class="card"><label for="li">Identifiant</label><input id="li" style="margin-bottom:12px" autocomplete="username">
  <label for="lp">Mot de passe</label><input id="lp" type="password" style="margin-bottom:16px" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
- <button class="btn" id="lbtn" onclick="doLogin()">Se connecter</button></div>
- <p class="hint">Pas encore de compte ? Un administrateur peut en créer un depuis Supabase (Authentication → Add user), puis vous attribuer un rôle ici dans Utilisateurs.</p></div>`;
+ <button class="btn" id="lbtn" onclick="doLogin()">Se connecter</button></div></div>`;
 }
 function logout(){sb.auth.signOut()}
 
@@ -117,6 +116,7 @@ async function refreshCats(){await loadCategories();await render()}
 
 /* ---------- Rendu principal ---------- */
 async function render(){
+ document.body.classList.toggle('loggedout',!session||!me);
  if(!session||!me){$('#nav').innerHTML='';$('#main').innerHTML=loginView();return}
  if(!products.length)products=await loadProducts();
  if(!categories.length)await loadCategories();
@@ -604,13 +604,25 @@ async function setOrderStatus(id,status){
  await checkPendingOrders(false);await refresh()
 }
 async function generalTab(){
- const{data}=await sb.from('site_settings').select('*').in('key',['shipping_message','shipping_threshold']);
+ const{data}=await sb.from('site_settings').select('*').in('key',['shipping_message','shipping_threshold','stats']);
+ const stats=parseStats(data?.find(r=>r.key==='stats')?.value);
  const msg=data?.find(r=>r.key==='shipping_message')?.value||'';
  const th=data?.find(r=>r.key==='shipping_threshold')?.value||'';
  return `<div class="card"><h2 style="margin-top:0">Message de livraison</h2><p class="hint" style="margin:0 0 12px">Affiché sur le site avec une petite illustration, et sous forme de barre de progression dans le panier (ex. "Plus que 50 DH pour la livraison gratuite !").</p>
  <label for="shipmsg">Message</label><input id="shipmsg" value="${esc(msg)}" style="margin-bottom:12px" placeholder="Livraison gratuite dès 200 DH d'achat">
  <label for="shipth">Seuil de livraison gratuite (DH, facultatif — active la barre de progression dans le panier)</label><input id="shipth" type="number" min="0" step="any" value="${esc(th)}" style="margin-bottom:12px">
- <button class="btn" onclick="saveShippingMsg()">Enregistrer</button></div>`;
+ <button class="btn" onclick="saveShippingMsg()">Enregistrer</button></div>
+ <div class="card"><h2 style="margin-top:0">Chiffres clés</h2><p class="hint" style="margin:0 0 12px">Affichés sur le site sous forme de compteurs (ex. « +450 » et « Produits de qualité »). Videz une ligne pour la masquer.</p>
+ ${[0,1,2,3].map(i=>`<div class="grid" style="grid-template-columns:140px 1fr;margin-bottom:10px"><div><label for="stv${i}">Chiffre</label><input id="stv${i}" value="${esc(stats[i]?.value||'')}" placeholder="+450"></div><div><label for="stl${i}">Texte</label><input id="stl${i}" value="${esc(stats[i]?.label||'')}" placeholder="Produits de qualité"></div></div>`).join('')}
+ <button class="btn" onclick="saveStats()">Enregistrer les chiffres</button></div>`;
+}
+const DEFAULT_STATS=[{value:'+450',label:'Produits de qualité'},{value:'+10',label:"Ans d'expérience"},{value:'+3600',label:'Clients satisfaits'},{value:'+31',label:'Marques'}];
+function parseStats(v){if(v==null||v==='')return DEFAULT_STATS;try{const a=JSON.parse(v);return Array.isArray(a)?a:DEFAULT_STATS}catch(e){return DEFAULT_STATS}}
+async function saveStats(){
+ const list=[0,1,2,3].map(i=>({value:$('#stv'+i).value.trim(),label:$('#stl'+i).value.trim()})).filter(x=>x.value||x.label);
+ const{error}=await sb.from('site_settings').upsert({key:'stats',value:JSON.stringify(list)});
+ if(error){toast(error.message);return}
+ toast('Chiffres enregistrés 🎉')
 }
 async function saveShippingMsg(){
  const value=$('#shipmsg').value.trim(),threshold=$('#shipth').value.trim();
@@ -805,11 +817,37 @@ async function renameBrand(id,name){
 }
 async function setBrandLogo(id,inp){const f=inp.files[0];if(!f)return;const url=await uploadSiteImage(f,`brand-${id}.${(f.name.split('.').pop()||'jpg').toLowerCase()}`);if(url){await sb.from('brands').update({logo_url:url}).eq('id',id);await refreshCats()}}
 async function delBrand(id){if(confirm('Supprimer cette marque ?')){await sb.from('brands').delete().eq('id',id);await refreshCats()}}
+let editingBrand=null,editBrandLogo=null;
+function editBrand(id){editingBrand=editingBrand===id?null:id;editBrandLogo=null;render(true)}
+function pickEditBrandLogo(inp){editBrandLogo=inp.files[0]||null;const r=$('#eblp');if(!r)return;if(editBrandLogo){const rd=new FileReader();rd.onload=()=>r.innerHTML=`<img src="${rd.result}" alt="" style="height:80px;max-width:200px;object-fit:contain;border-radius:10px;background:var(--bg);padding:6px">`;rd.readAsDataURL(editBrandLogo)}}
+async function saveBrand(id){
+ const b=brands.find(x=>x.id===id);if(!b)return;
+ const name=$('#ebn').value.trim();if(!name){toast('Le nom ne peut pas être vide');return}
+ const patch={};
+ if(name!==b.name)patch.name=name;
+ if(editBrandLogo){const url=await uploadSiteImage(editBrandLogo,`brand-${id}-${Date.now()}.${(editBrandLogo.name.split('.').pop()||'jpg').toLowerCase()}`);if(!url)return;patch.logo_url=url}
+ if($('#ebrm')?.checked&&!editBrandLogo)patch.logo_url=null;
+ if(!Object.keys(patch).length){editingBrand=null;await render();return}
+ const{error}=await sb.from('brands').update(patch).eq('id',id);
+ if(error){toast(error.message);return}
+ if(patch.name)await sb.from('products').update({brand:name}).eq('brand',b.name);
+ editingBrand=null;editBrandLogo=null;toast('Marque mise à jour 🎉');await refreshCats();await refresh()
+}
+function brandEditCard(b){
+ return `<div class="card" style="border:2px solid var(--acc)"><h2 style="margin-top:0">Modifier « ${esc(b.name)} »</h2>
+ <div class="grid"><div><label for="ebn">Nom</label><input id="ebn" value="${esc(b.name)}"></div>
+ <div><label for="ebl">Nouveau logo (facultatif)</label><input id="ebl" type="file" accept="image/*" onchange="pickEditBrandLogo(this)"></div></div>
+ <div class="row" style="align-items:center"><div><label>Logo actuel</label>${b.logo_url?`<img src="${esc(b.logo_url)}" alt="" style="height:80px;max-width:200px;object-fit:contain;border-radius:10px;background:var(--bg);padding:6px">`:'<span class="hint">Aucun logo</span>'}</div><div><label>${b.logo_url?'Remplacé par':'Nouveau'}</label><div id="eblp"><span class="hint">—</span></div></div></div>
+ ${b.logo_url?`<label style="display:flex;gap:8px;align-items:center;font-weight:400;margin:0 0 12px"><input type="checkbox" id="ebrm" style="width:auto;min-height:auto">Retirer le logo (la marque s'affichera avec son nom)</label>`:''}
+ <div class="row"><button class="btn" onclick="saveBrand('${b.id}')">Enregistrer</button><button class="btn ghost" onclick="editingBrand=null;editBrandLogo=null;render(true)">Annuler</button></div></div>`;
+}
 function brandTab(){
+ const eb=editingBrand?brands.find(x=>x.id===editingBrand):null;
  return `<div class="card"><h2 style="margin-top:0">Nouvelle marque</h2>
  <div class="grid"><div><label for="newbrand">Nom</label><input id="newbrand" placeholder="Ex. Sophie la Girafe"></div><div><label for="newbrandimg">Logo (facultatif)</label><input id="newbrandimg" type="file" accept="image/*" onchange="pickBrandLogo(this)"></div></div>
  <button class="btn" onclick="addBrand()">Ajouter la marque</button></div>
- ${brands.length?`<div class="panel scroll"><table><tr><th></th><th>Nom</th><th class="n"></th></tr>${brands.map(b=>`<tr><td><label class="thl" title="Changer le logo">${b.logo_url?`<img src="${esc(b.logo_url)}" alt="" style="width:36px;height:36px;border-radius:8px;object-fit:cover">`:'<span class="th">🏷️</span>'}<input type="file" accept="image/*" hidden onchange="setBrandLogo('${b.id}',this)"></label></td><td><input value="${esc(b.name)}" onchange="renameBrand('${b.id}',this.value)"></td><td class="n"><button class="btn ghost" onclick="delBrand('${b.id}')">Supprimer</button></td></tr>`).join('')}</table></div>`:'<div class="panel empty">Aucune marque pour le moment.</div>'}`;
+ ${eb?brandEditCard(eb):''}
+ ${brands.length?`<div class="panel scroll"><table><tr><th>Logo</th><th>Nom</th><th class="n">Produits</th><th class="n"></th></tr>${brands.map(b=>`<tr${editingBrand===b.id?' style="background:var(--bg)"':''}><td>${b.logo_url?`<img src="${esc(b.logo_url)}" alt="" style="height:44px;max-width:110px;object-fit:contain;border-radius:8px">`:'<span class="th">🏷️</span>'}</td><td><b>${esc(b.name)}</b></td><td class="n">${products.filter(p=>p.brand===b.name).length}</td><td class="n"><button class="btn ghost" onclick="editBrand('${b.id}')">✏️ Modifier</button> <button class="btn ghost" onclick="delBrand('${b.id}')">Supprimer</button></td></tr>`).join('')}</table></div>`:'<div class="panel empty">Aucune marque pour le moment.</div>'}`;
 }
 
 
@@ -817,41 +855,27 @@ function brandTab(){
 async function users(){
  const{data}=await sb.from('profiles').select('*').order('created_at');
  const list=data||[];
- return `<h1>Utilisateurs</h1><p class="sub">${isAdmin()?"Créez un compte directement ci-dessous, ou dans Supabase (Authentication → Add user) puis attribuez le nom et le rôle ici.":"Les comptes se créent dans Supabase (Authentication → Add user) ; attribuez ensuite le nom et le rôle ici."}</p>
+ return `<h1>Utilisateurs</h1><p class="sub">Gérez les comptes et les rôles de votre équipe.</p>
  ${isAdmin()?`<div class="card"><h2 style="margin-top:0">Nouveau compte</h2>
  <div class="grid"><div><label for="nun">Nom</label><input id="nun"></div><div><label for="nue">Email</label><input id="nue" type="email"></div></div>
  <div class="grid"><div><label for="nup">Mot de passe</label><input id="nup" type="password"></div><div><label for="nur">Rôle</label><select id="nur">${Object.entries(ROLE).map(([k,l])=>`<option value="${k}">${l}</option>`).join('')}</select></div></div>
- <button class="btn" onclick="createUser()">Créer le compte</button>
- <p class="hint" style="margin:10px 0 0">Fonctionne une fois la fonction Supabase <code>create-user</code> déployée (voir README).</p></div>`:''}
+ <button class="btn" onclick="createUser()">Créer le compte</button></div>`:''}
  <div class="panel scroll"><table><tr><th>Nom</th><th>Rôle</th>${isAdmin()?'<th>Nouveau mot de passe</th>':''}<th class="n"></th></tr>${list.map(u=>`<tr><td><input value="${esc(u.name)}" onchange="renameUser('${u.id}',this.value)" style="min-width:140px"></td><td><select onchange="setRole('${u.id}',this.value)">${Object.entries(ROLE).map(([k,l])=>`<option value="${k}" ${u.role===k?'selected':''}>${l}</option>`).join('')}</select></td>${isAdmin()?`<td><div class="row" style="margin:0"><input type="password" id="pw_${u.id}" placeholder="6 caractères min." style="min-width:120px"><button class="btn ghost" onclick="resetPassword('${u.id}')">Réinitialiser</button></div></td>`:''}<td class="n">${u.id===me.id?'<span class="hint">(vous)</span>':''}</td></tr>`).join('')}</table></div>
- ${isAdmin()?`<p class="hint">Réinitialiser un mot de passe fonctionne une fois la fonction Supabase <code>reset-password</code> déployée (voir README).</p>`:''}
  <p class="hint">Vendeur : ventes et consultation. Magasinier : produits et entrées. Administrateur : tout, y compris profit et utilisateurs.</p>`;
-}
-async function callFn(name,body){
- const{data,error}=await sb.functions.invoke(name,{body});
- if(error){
-  let msg=error.message||'Erreur';
-  if(error.context&&typeof error.context.json==='function'){
-   try{const j=await error.context.json();if(j&&j.error)msg=j.error}catch(e){}
-  }
-  return{ok:false,msg};
- }
- if(data&&data.error)return{ok:false,msg:data.error};
- return{ok:true,data};
 }
 async function resetPassword(id){
  const el=$('#pw_'+id),password=el.value;
  if(!password||password.length<6){toast('Mot de passe : 6 caractères minimum');return}
- const r=await callFn('reset-password',{userId:id,password});
- if(!r.ok){toast(r.msg);return}
+ const{data,error}=await sb.functions.invoke('reset-password',{body:{userId:id,password}});
+ if(error||data?.error){toast((data&&data.error)||error.message||'Erreur lors de la réinitialisation');return}
  el.value='';toast('Mot de passe mis à jour 🎉')
 }
 async function createUser(){
  const name=$('#nun').value.trim(),email=$('#nue').value.trim(),password=$('#nup').value,role=$('#nur').value;
  if(!name||!email||!password){toast('Nom, email et mot de passe requis');return}
  if(password.length<6){toast('Mot de passe : 6 caractères minimum');return}
- const r=await callFn('create-user',{name,email,password,role});
- if(!r.ok){toast(r.msg);return}
+ const{data,error}=await sb.functions.invoke('create-user',{body:{name,email,password,role}});
+ if(error||data?.error){toast((data&&data.error)||error.message||'Erreur lors de la création');return}
  $('#nun').value='';$('#nue').value='';$('#nup').value='';
  toast('Compte créé 🎉');await render()
 }

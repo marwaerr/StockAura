@@ -583,15 +583,17 @@ async function setOrderStatus(id,status){
  toast('Statut mis à jour');await checkPendingOrders(false);await render()
 }
 async function generalTab(){
- const{data}=await sb.from('site_settings').select('*').eq('key','shipping_message').single();
- const msg=data?.value||'';
- return `<div class="card"><h2 style="margin-top:0">Message de livraison</h2><p class="hint" style="margin:0 0 12px">Affiché sur le site avec une petite illustration (ex. "Livraison gratuite dès 200 DH d'achat").</p>
- <label for="shipmsg">Message</label><input id="shipmsg" value="${esc(msg)}" style="margin-bottom:12px">
+ const{data}=await sb.from('site_settings').select('*').in('key',['shipping_message','shipping_threshold']);
+ const msg=data?.find(r=>r.key==='shipping_message')?.value||'';
+ const th=data?.find(r=>r.key==='shipping_threshold')?.value||'';
+ return `<div class="card"><h2 style="margin-top:0">Message de livraison</h2><p class="hint" style="margin:0 0 12px">Affiché sur le site avec une petite illustration, et sous forme de barre de progression dans le panier (ex. "Plus que 50 DH pour la livraison gratuite !").</p>
+ <label for="shipmsg">Message</label><input id="shipmsg" value="${esc(msg)}" style="margin-bottom:12px" placeholder="Livraison gratuite dès 200 DH d'achat">
+ <label for="shipth">Seuil de livraison gratuite (DH, facultatif — active la barre de progression dans le panier)</label><input id="shipth" type="number" min="0" step="any" value="${esc(th)}" style="margin-bottom:12px">
  <button class="btn" onclick="saveShippingMsg()">Enregistrer</button></div>`;
 }
 async function saveShippingMsg(){
- const value=$('#shipmsg').value.trim();
- const{error}=await sb.from('site_settings').upsert({key:'shipping_message',value});
+ const value=$('#shipmsg').value.trim(),threshold=$('#shipth').value.trim();
+ const{error}=await sb.from('site_settings').upsert([{key:'shipping_message',value},{key:'shipping_threshold',value:threshold}]);
  if(error){toast(error.message);return}
  toast('Message enregistré 🎉')
 }

@@ -76,7 +76,7 @@ async function doLogin(){
  if(error){toast('Identifiant ou mot de passe incorrect');$('#lbtn').textContent='Se connecter'}
 }
 function loginView(){
- return `<div class="login-wrap"><h1>Ola Bébé 🎉</h1><p class="sub">Connectez-vous pour accéder à votre boutique.</p>
+ return `<div class="login-wrap"><div class="login-brand"><img src="logo.png" alt=""><h1>Ola Bébé 🎉</h1></div><p class="sub">Connectez-vous pour accéder à votre boutique.</p>
  <div class="card"><label for="li">Identifiant</label><input id="li" style="margin-bottom:12px" autocomplete="username">
  <label for="lp">Mot de passe</label><input id="lp" type="password" style="margin-bottom:16px" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
  <button class="btn" id="lbtn" onclick="doLogin()">Se connecter</button></div>

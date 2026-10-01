@@ -54,8 +54,8 @@ header{background:var(--card);position:sticky;top:0;z-index:10;box-shadow:0 1px 
 .shipbanner{display:flex;align-items:center;gap:14px;background:var(--teal-s);border-radius:18px;padding:8px 24px 8px 8px;margin:10px 0;overflow:hidden;width:100%}
 .shipbanner img{width:40px;height:40px;object-fit:contain;flex:none;display:block}
 .ship-track{flex:1;overflow:hidden;position:relative;min-width:0;container-type:inline-size}
-.ship-move{display:flex;white-space:nowrap;animation:shipScroll 20s linear infinite;width:max-content}
-.ship-move b{display:flex;justify-content:center;min-width:100cqw;padding:0 20px;font-size:13px;color:var(--ink);font-weight:700}
+.ship-move{display:flex;white-space:nowrap;animation:shipScroll 40s linear infinite;width:max-content}
+.ship-move b{display:flex;justify-content:center;min-width:60cqw;padding:0 20px;font-size:13px;color:var(--ink);font-weight:700}
 .shipprog{background:var(--nl);border-radius:14px;padding:12px 14px;margin-bottom:16px;font-size:12.5px}
 .shipprog .bar{height:8px;border-radius:99px;background:var(--line);overflow:hidden;margin-bottom:8px}
 .shipprog .fill{height:100%;background:linear-gradient(90deg,var(--teal),var(--pink));border-radius:99px;transition:width .3s}
@@ -66,8 +66,8 @@ header{background:var(--card);position:sticky;top:0;z-index:10;box-shadow:0 1px 
 .cart-empty b{display:block;font-size:15px;margin-bottom:6px}
 .cart-empty p{color:var(--mute);font-size:12.5px;margin:0 0 18px}
 .cart-empty .btn{width:100%}
-@keyframes shipScroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
-@media(prefers-reduced-motion:reduce){.ship-move{animation:none}}
+@keyframes shipScroll{from{transform:translateX(-40cqw)}to{transform:translateX(calc(-40cqw - 50%))}}
+@media(prefers-reduced-motion:reduce){.ship-move{animation:none;transform:translateX(-40cqw)}}
 .feat{display:grid;grid-template-columns:repeat(4,1fr);padding:30px 0}
 .feat div{display:flex;gap:12px;align-items:center;font-size:11px;color:var(--mute);line-height:1.45;padding:0 16px;border-left:1px solid var(--line)}.feat div:first-child{border:0}
 .feat i{font-style:normal;width:44px;height:44px;border-radius:50%;display:grid;place-items:center;font-size:19px;flex:none}.feat b{display:block;color:var(--ink);font-size:12px}
@@ -248,7 +248,10 @@ async function boot(){
 function renderShipBanner(msg){
  const el=$('#shipbanner');if(!el)return;
  if(!msg){el.style.display='none';return}
- el.innerHTML=`<img src="ship-baby.png" alt=""><div class="ship-track"><div class="ship-move"><b>${esc(msg)}</b><b>${esc(msg)}</b></div></div>`;
+ el.innerHTML=`<img src="ship-baby.png" alt=""><div class="ship-track"><div class="ship-move">${`<b>${esc(msg)}</b>`.repeat(6)}</div></div>`;
+ const mv=el.querySelector('.ship-move');
+ const SPEED=25; // pixels par seconde : plus petit = plus lent
+ requestAnimationFrame(()=>{mv.style.animationDuration=(mv.scrollWidth/2/SPEED)+'s'});
 }
 function renderRibbon(){
  if(!promos.length)return;

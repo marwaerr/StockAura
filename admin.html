@@ -8,7 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
-<body class="loggedout">
+<body>
 <div class="app">
 <nav id="nav"></nav>
 <main id="main"><p class="sub">Chargement…</p></main>
@@ -76,7 +76,7 @@ async function doLogin(){
  if(error){toast('Identifiant ou mot de passe incorrect');$('#lbtn').textContent='Se connecter'}
 }
 function loginView(){
- return `<div class="login-wrap"><div class="login-brand"><img src="logo.png" alt=""><h1>Ola Bébé 🎉</h1></div><p class="sub">Connectez-vous pour accéder à votre boutique.</p>
+ return `<div class="login-wrap"><h1>Ola Bébé 🎉</h1><p class="sub">Connectez-vous pour accéder à votre boutique.</p>
  <div class="card"><label for="li">Identifiant</label><input id="li" style="margin-bottom:12px" autocomplete="username">
  <label for="lp">Mot de passe</label><input id="lp" type="password" style="margin-bottom:16px" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
  <button class="btn" id="lbtn" onclick="doLogin()">Se connecter</button></div>
@@ -117,7 +117,6 @@ async function refreshCats(){await loadCategories();await render()}
 
 /* ---------- Rendu principal ---------- */
 async function render(){
- document.body.classList.toggle('loggedout',!session||!me);
  if(!session||!me){$('#nav').innerHTML='';$('#main').innerHTML=loginView();return}
  if(!products.length)products=await loadProducts();
  if(!categories.length)await loadCategories();
@@ -828,19 +827,31 @@ async function users(){
  ${isAdmin()?`<p class="hint">Réinitialiser un mot de passe fonctionne une fois la fonction Supabase <code>reset-password</code> déployée (voir README).</p>`:''}
  <p class="hint">Vendeur : ventes et consultation. Magasinier : produits et entrées. Administrateur : tout, y compris profit et utilisateurs.</p>`;
 }
+async function callFn(name,body){
+ const{data,error}=await sb.functions.invoke(name,{body});
+ if(error){
+  let msg=error.message||'Erreur';
+  if(error.context&&typeof error.context.json==='function'){
+   try{const j=await error.context.json();if(j&&j.error)msg=j.error}catch(e){}
+  }
+  return{ok:false,msg};
+ }
+ if(data&&data.error)return{ok:false,msg:data.error};
+ return{ok:true,data};
+}
 async function resetPassword(id){
  const el=$('#pw_'+id),password=el.value;
  if(!password||password.length<6){toast('Mot de passe : 6 caractères minimum');return}
- const{data,error}=await sb.functions.invoke('reset-password',{body:{userId:id,password}});
- if(error||data?.error){toast((data&&data.error)||error.message||'Erreur lors de la réinitialisation');return}
+ const r=await callFn('reset-password',{userId:id,password});
+ if(!r.ok){toast(r.msg);return}
  el.value='';toast('Mot de passe mis à jour 🎉')
 }
 async function createUser(){
  const name=$('#nun').value.trim(),email=$('#nue').value.trim(),password=$('#nup').value,role=$('#nur').value;
  if(!name||!email||!password){toast('Nom, email et mot de passe requis');return}
  if(password.length<6){toast('Mot de passe : 6 caractères minimum');return}
- const{data,error}=await sb.functions.invoke('create-user',{body:{name,email,password,role}});
- if(error||data?.error){toast((data&&data.error)||error.message||'Erreur lors de la création');return}
+ const r=await callFn('create-user',{name,email,password,role});
+ if(!r.ok){toast(r.msg);return}
  $('#nun').value='';$('#nue').value='';$('#nup').value='';
  toast('Compte créé 🎉');await render()
 }

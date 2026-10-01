@@ -183,7 +183,7 @@ footer a:hover{color:var(--pink)}
  <p>Découvrez notre sélection de produits pour bébé et maman, ajoutez vos articles au panier et passez votre commande en toute simplicité.</p>
  <a class="btn light" href="#prods">Voir les produits →</a><a class="btn o" href="#promo">Promotions</a>
 </div></section>
-<div class="w"><div id="shipbanner" class="shipbanner"></div></div>
+<div class="w"><div id="shipbanner" class="shipbanner" style="display:none"></div></div>
 <div class="w feat">
  <div><i style="background:var(--pink-m)">💳</i><span><b>Paiement flexible</b>Cash ou carte à la livraison</span></div>
  <div><i style="background:var(--teal-m)">🚚</i><span><b>Livraison rapide</b>Partout au Maroc</span></div>
@@ -247,11 +247,14 @@ async function boot(){
 }
 function renderShipBanner(msg){
  const el=$('#shipbanner');if(!el)return;
- if(!msg){el.style.display='none';return}
+ try{msg?localStorage.setItem('ola_ship_msg',msg):localStorage.removeItem('ola_ship_msg')}catch(e){}
+ if(!msg){el.style.display='none';el.dataset.msg='';return}
+ if(el.dataset.msg===msg){el.style.display='';return} // déjà affiché : on ne relance pas l'animation
+ el.dataset.msg=msg;el.style.display='';
  el.innerHTML=`<img src="ship-baby.png" alt=""><div class="ship-track"><div class="ship-move">${`<b>${esc(msg)}</b>`.repeat(6)}</div></div>`;
  const mv=el.querySelector('.ship-move');
  const SPEED=25; // pixels par seconde : plus petit = plus lent
- requestAnimationFrame(()=>{mv.style.animationDuration=(mv.scrollWidth/2/SPEED)+'s'});
+ mv.style.animationDuration=(mv.scrollWidth/2/SPEED)+'s';
 }
 function renderRibbon(){
  if(!promos.length)return;
@@ -401,6 +404,7 @@ async function submitOrder(){
  if(error){toast(error.message);return}
  cart={};closeCart();updateFab();renderGrid();renderNew();renderPromo();toast('Commande envoyée 🎉 Nous vous contactons bientôt.');
 }
+try{const m=localStorage.getItem('ola_ship_msg');if(m)renderShipBanner(m)}catch(e){}
 boot();
 </script>
 </body>

@@ -140,6 +140,8 @@ async function home(){
  const m=moves||[],sgn=x=>x.type==='out'?1:-1,trans=m.filter(x=>x.type==='out'||x.type==='return'),salesM=m.filter(x=>x.type==='out');
  const ca=trans.reduce((s,x)=>s+sgn(x)*x.qty*x.unit_price,0),pf=trans.reduce((s,x)=>s+sgn(x)*x.qty*(x.unit_price-(x.cost||0)),0);
  const c=combos(),total=c.reduce((s,x)=>s+x.q,0),low=c.filter(x=>x.q<=(x.p.low_threshold||LOW)),out0=c.filter(x=>x.q<=0).length;
+ const top={};trans.forEach(x=>{const pid=x.variants?.product_id;if(!pid)return;const sg=sgn(x);const o=top[pid]=top[pid]||{q:0,r:0};o.q+=sg*x.qty;o.r+=sg*x.qty*x.unit_price});
+ const topList=Object.entries(top).filter(([,o])=>o.q>0).sort((a,b)=>b[1].q-a[1].q).slice(0,5);
  const card=(t,i,v,l)=>`<div class="oc" data-t="${t}"><span class="ic">${ic(i)}</span><div><b>${v}</b><span>${l}</span></div></div>`;
  const presets=[['day',"Aujourd'hui"],['week','7 jours'],['month','Ce mois'],['year','Cette année']];
  const{data:recent}=await sb.from('moves').select('*, variants(variant,color,product_id)').order('date',{ascending:false}).order('created_at',{ascending:false}).limit(6);
@@ -151,13 +153,26 @@ async function home(){
  ${isAdmin()?card('e','trend','<span style="color:var(--'+(pf<0?'bad':'ok')+')">'+dh(pf)+'</span>','Profit sur la période'):''}
  ${card('a','box',products.length,'Produits')}${card('d','box',total,'Articles en stock')}${card('w','alert',out0,'Déclinaisons en rupture')}</div></div>
  ${low.length?`<h2>À réapprovisionner</h2><div class="panel scroll"><table>${low.slice(0,8).map(x=>`<tr><td>${esc(x.p.name)}</td><td>${esc(x.v.variant)}</td><td>${esc(x.v.color)}</td><td class="n"><span class="pill ${x.q<=0?'zero':''}">${x.q}</span></td></tr>`).join('')}</table></div>`:''}
+ <h2>Top 5 produits (sur la période)</h2>${topList.length?`<div class="panel scroll"><table><tr><th>Produit</th><th class="n">Unités vendues</th><th class="n">Chiffre d'affaires</th></tr>${topList.map(([pid,o],i)=>`<tr><td>${i+1}. ${esc(products.find(p=>p.id===pid)?.name||'(supprimé)')}</td><td class="n">${o.q}</td><td class="n">${dh(o.r)}</td></tr>`).join('')}</table></div>`:'<div class="panel empty">Aucune vente sur cette période.</div>'}
  <h2>Derniers mouvements</h2>${moveTable(recent||[])}`;
 }
 const MLBL={in:'Entrée',out:'Vente',return:'Retour'};
-function moveTable(a){
+function moveTable(a,withReceipt){
  if(!a.length)return '<div class="panel empty">Aucun mouvement pour le moment.</div>';
  const showAmt=isAdmin();
- return `<div class="panel scroll"><table><tr><th>Date</th><th>Type</th><th>Produit</th><th class="n">Qté</th>${showAmt?'<th class="n">Montant</th>':''}</tr>${a.map(x=>{const p=prodOf(x.variants?.product_id)||prodOf(x.variant_id);return `<tr><td>${fd(x.date)}</td><td>${MLBL[x.type]||x.type}</td><td>${esc(p?.p?.name||'(supprimé)')} · ${esc(x.variants?.variant||'')} · ${esc(x.variants?.color||'')}</td><td class="n ${x.type==='out'?'out':'in'}">${x.type==='out'?'-':'+'}${x.qty}</td>${showAmt?`<td class="n">${dh(x.qty*x.unit_price)}</td>`:''}</tr>`}).join('')}</table></div>`;
+ return `<div class="panel scroll"><table><tr><th>Date</th><th>Type</th><th>Produit</th><th class="n">Qté</th>${showAmt?'<th class="n">Montant</th>':''}${withReceipt?'<th class="n"></th>':''}</tr>${a.map(x=>{const p=prodOf(x.variants?.product_id)||prodOf(x.variant_id);return `<tr><td>${fd(x.date)}</td><td>${MLBL[x.type]||x.type}</td><td>${esc(p?.p?.name||'(supprimé)')} · ${esc(x.variants?.variant||'')} · ${esc(x.variants?.color||'')}</td><td class="n ${x.type==='out'?'out':'in'}">${x.type==='out'?'-':'+'}${x.qty}</td>${showAmt?`<td class="n">${dh(x.qty*x.unit_price)}</td>`:''}${withReceipt?`<td class="n">${x.type==='out'&&x.sale_id?`<button class="btn ghost" onclick="viewReceipt('${x.sale_id}')">Reçu</button>`:''}</td>`:''}</tr>`}).join('')}</table></div>`;
+}
+async function viewReceipt(saleId){
+ const[{data:saleRow},{data:items}]=await Promise.all([
+  sb.from('sales').select('*').eq('id',saleId).single(),
+  sb.from('moves').select('*, variants(variant,color,product_id)').eq('sale_id',saleId)
+ ]);
+ if(!saleRow||!items||!items.length){toast('Reçu introuvable');return}
+ let byName='';
+ if(items[0]?.by){const{data:prof}=await sb.from('profiles').select('name').eq('id',items[0].by).single();byName=prof?.name||''}
+ lastReceipt={id:saleId,date:saleRow.date,by:byName,sub:saleRow.subtotal,discAmt:saleRow.discount_amount,total:saleRow.total,payment:saleRow.payment,given:saleRow.given,change:saleRow.change,
+  items:items.map(i=>({name:products.find(p=>p.id===i.variants?.product_id)?.name||'(supprimé)',v:i.variants?.variant||'',c:i.variants?.color||'',q:i.qty,price:i.unit_price}))};
+ view='sales';await render()
 }
 
 /* ---------- Produits ---------- */
@@ -174,6 +189,12 @@ function catOptions(sel){
 }
 function subOptions(catName){const cat=categories.find(c=>c.name===catName);const subs=cat?subcategories.filter(s=>s.category_id===cat.id):[];return`<select id="psub"><option value="">— Aucune —</option>${subs.map(s=>`<option value="${esc(s.name)}">${esc(s.name)}</option>`).join('')}</select>`}
 function onCatChange(){const sel=$('#pcat').value;$('#subwrap').innerHTML=subOptions(sel)}
+function deptSelectOptions(sel){return `<option value="">— Choisir —</option>`+departments.map(d=>`<option value="${d.id}" ${sel===d.id?'selected':''}>${esc(d.name)}</option>`).join('')}
+function catOptionsForDept(deptId,sel){
+ const cs=deptId?categories.filter(c=>c.department_id===deptId):categories.filter(c=>!c.department_id);
+ return `<select id="pcat" onchange="onCatChange()"><option value="">— Choisir —</option>${cs.map(c=>`<option value="${esc(c.name)}" ${sel===c.name?'selected':''}>${esc(c.name)}</option>`).join('')}</select>`;
+}
+function onDeptChange(){$('#catwrap2').innerHTML=catOptionsForDept($('#pdept').value,'');onCatChange()}
 function brandOptions(id){return`<select id="${id}"><option value="">— Choisir —</option>${brands.map(b=>`<option value="${esc(b.name)}">${esc(b.name)}</option>`).join('')}</select>`}
 let newPhotoFile=null;
 function pickPhotoFile(inp){newPhotoFile=inp.files[0]||null;const r=$('#pphp');if(newPhotoFile){const rd=new FileReader();rd.onload=()=>r.innerHTML=`<img class="th" src="${rd.result}" alt="">`;rd.readAsDataURL(newPhotoFile)}else r.innerHTML=''}
@@ -228,14 +249,16 @@ function productsView(){
  <div><label for="pb">${t('barcode')}</label><input id="pb" placeholder="Si une seule déclinaison"></div>
  <div><label for="pp">${t('price')} de vente (DH)</label><input id="pp" type="number" min="0" step="any"></div>
  ${ad?`<div><label for="pa">Prix d'achat (DH)</label><input id="pa" type="number" min="0" step="any"></div>`:''}</div>
- <div class="grid"><div><label for="pcat">${t('category')}</label>${catOptions()}</div><div><label for="psub">${t('subcategory')} (facultatif)</label><div id="subwrap">${subOptions()}</div></div></div>
- ${!categories.length?`<p class="hint">Aucune catégorie créée pour l'instant — ajoutez-en dans <a href="#" onclick="view='site';siteTab='categories';render();return false">Site → Catégories</a>.</p>`:''}
+ <div class="grid"><div><label for="pdept">Rayon</label><select id="pdept" onchange="onDeptChange()">${deptSelectOptions()}</select></div><div><label for="pcat">${t('category')}</label><div id="catwrap2">${catOptionsForDept('','')}</div></div></div>
+ <div class="grid"><div><label for="psub">${t('subcategory')} (facultatif)</label><div id="subwrap">${subOptions()}</div></div></div>
+ ${!departments.length?`<p class="hint">Créez d'abord un rayon dans <a href="#" onclick="view='site';siteTab='departments';render();return false">Site → Rayons</a>.</p>`:!categories.length?`<p class="hint">Aucune catégorie créée pour l'instant — ajoutez-en dans <a href="#" onclick="view='site';siteTab='categories';render();return false">Site → Catégories</a>.</p>`:''}
  <div class="grid"><div><label for="pv">Tailles / variantes</label><input id="pv" placeholder="S, M, L" oninput="cbPreview()"></div>
  <div><label for="pc">Couleurs</label><input id="pc" placeholder="Noir, Rose, Bleu" oninput="cbPreview()"></div></div>
  <div id="cbx"></div>
  <label for="pdesc">Description (facultatif)</label><textarea id="pdesc" rows="3" style="width:100%;font:inherit;border:1px solid var(--line);border-radius:8px;padding:9px 11px;margin-bottom:12px"></textarea>
  <div class="grid"><div><label for="pphoto">${t('photo')} principale (facultatif)</label><input id="pphoto" type="file" accept="image/*" onchange="pickPhotoFile(this)"></div><div><label for="pth">Seuil stock faible</label><input id="pth" type="number" min="0" placeholder="${LOW}"></div></div>
  <div id="pphp" style="margin-bottom:10px"></div>
+ <label for="pgallery">Photos supplémentaires pour la fiche produit du site (facultatif)</label><input id="pgallery" type="file" accept="image/*" multiple style="margin-bottom:12px">
  <label style="display:flex;gap:8px;align-items:center;font-weight:400;margin:0 0 10px"><input type="checkbox" id="pvis" checked style="width:auto;min-height:auto">Afficher sur le site vitrine</label>
  <label style="display:flex;gap:8px;align-items:center;font-weight:400;margin:0 0 10px"><input type="checkbox" id="pnew" style="width:auto;min-height:auto">Marquer comme nouveauté</label>
  <label style="display:flex;gap:8px;align-items:center;font-weight:400;margin:0 0 10px"><input type="checkbox" id="psale" style="width:auto;min-height:auto" onchange="toggleSaleField(this)">En promotion</label>
@@ -299,6 +322,8 @@ async function addProduct(){
  const{data:p,error}=await sb.from('products').insert({name,price,cost:isAdmin()?(parseFloat($('#pa').value)||0):0,category,subcategory:$('#psub').value.trim()||null,brand:$('#pbrand').value.trim()||null,description:$('#pdesc').value.trim()||null,is_new:$('#pnew').checked,on_sale:onSale,sale_price:salePrice,visible:$('#pvis').checked,low_threshold:parseInt($('#pth').value)||null}).select().single();
  if(error){toast(error.message);return}
  if(newPhotoFile){const url=await uploadPhoto(newPhotoFile,p.id);if(url)await sb.from('products').update({photo_url:url}).eq('id',p.id);newPhotoFile=null}
+ const galleryFiles=[...($('#pgallery').files||[])];
+ for(const f of galleryFiles){const url=await uploadGalleryPhoto(f,p.id);if(url)await sb.from('product_images').insert({product_id:p.id,image_url:url})}
  const V=parseList($('#pv').value),C=parseList($('#pc').value),single=V.length*C.length===1,bc=$('#pb').value.trim();
  const rows=[];
  for(const v of V)for(const c of C){
@@ -490,7 +515,7 @@ async function history(){
  const rows=(data||[]).filter(x=>{const p=prodOf(x.variant_id);return((p?.p.name||'')+(x.variants?.variant||'')+(x.variants?.color||'')).toLowerCase().includes(txt)});
  return `<h1>Historique</h1><p class="sub">Tous les mouvements, du plus récent au plus ancien.</p>
  <div class="row"><input type="search" placeholder="Rechercher" value="${esc(hist.q)}" oninput="hist.q=this.value;go('history')">
- <div class="seg">${[['all','Toutes'],['in','Entrées'],['out','Ventes'],['return','Retours']].map(([k,l])=>`<button class="${hist.type===k?'on':''}" onclick="hist.type='${k}';go('history')">${l}</button>`).join('')}</div></div>${moveTable(rows)}`;
+ <div class="seg">${[['all','Toutes'],['in','Entrées'],['out','Ventes'],['return','Retours']].map(([k,l])=>`<button class="${hist.type===k?'on':''}" onclick="hist.type='${k}';go('history')">${l}</button>`).join('')}</div></div>${moveTable(rows,true)}`;
 }
 
 /* ---------- Profit ---------- */
@@ -513,7 +538,7 @@ let newPromoImg=null;
 function pickPromoImg(inp){newPromoImg=inp.files[0]||null;const r=$('#mimgp');if(!r)return;if(newPromoImg){const rd=new FileReader();rd.onload=()=>r.innerHTML=`<img src="${rd.result}" alt="" style="width:100%;max-width:320px;aspect-ratio:2.43/1;object-fit:cover;border-radius:10px;margin-top:8px">`;rd.readAsDataURL(newPromoImg)}else r.innerHTML=''}
 let siteTab='promotions';
 function siteNav(){
- const tabs=[['promotions','Promotions'],['reviews','Avis'],['departments','Rayons'],['categories','Catégories'],['brands','Marques']];
+ const tabs=[['promotions','Promotions'],['reviews','Avis'],['departments','Rayons'],['categories','Catégories'],['brands','Marques'],['general','Général']];
  return `<div class="seg" style="margin-bottom:18px">${tabs.map(([k,l])=>`<button class="${siteTab===k?'on':''}" onclick="siteTab='${k}';render()">${l}</button>`).join('')}</div>`;
 }
 async function site(){
@@ -522,8 +547,22 @@ async function site(){
  else if(siteTab==='reviews')body=await reviewTab();
  else if(siteTab==='departments')body=deptTab();
  else if(siteTab==='categories')body=catTab();
+ else if(siteTab==='general')body=await generalTab();
  else body=brandTab();
  return `<h1>Site</h1><p class="sub">Tout ce qui est visible par vos clientes et clients sur le site vitrine.</p>${siteNav()}${body}`;
+}
+async function generalTab(){
+ const{data}=await sb.from('site_settings').select('*').eq('key','shipping_message').single();
+ const msg=data?.value||'';
+ return `<div class="card"><h2 style="margin-top:0">Message de livraison</h2><p class="hint" style="margin:0 0 12px">Affiché sur le site avec une petite illustration (ex. "Livraison gratuite dès 200 DH d'achat").</p>
+ <label for="shipmsg">Message</label><input id="shipmsg" value="${esc(msg)}" style="margin-bottom:12px">
+ <button class="btn" onclick="saveShippingMsg()">Enregistrer</button></div>`;
+}
+async function saveShippingMsg(){
+ const value=$('#shipmsg').value.trim();
+ const{error}=await sb.from('site_settings').upsert({key:'shipping_message',value});
+ if(error){toast(error.message);return}
+ toast('Message enregistré 🎉')
 }
 async function promoTab(){
  const{data}=await sb.from('promotions').select('*').order('created_at',{ascending:false});
@@ -699,8 +738,16 @@ async function users(){
  <div class="grid"><div><label for="nup">Mot de passe</label><input id="nup" type="password"></div><div><label for="nur">Rôle</label><select id="nur">${Object.entries(ROLE).map(([k,l])=>`<option value="${k}">${l}</option>`).join('')}</select></div></div>
  <button class="btn" onclick="createUser()">Créer le compte</button>
  <p class="hint" style="margin:10px 0 0">Fonctionne une fois la fonction Supabase <code>create-user</code> déployée (voir README).</p></div>`:''}
- <div class="panel scroll"><table><tr><th>Nom</th><th>Rôle</th><th class="n"></th></tr>${list.map(u=>`<tr><td><input value="${esc(u.name)}" onchange="renameUser('${u.id}',this.value)" style="min-width:140px"></td><td><select onchange="setRole('${u.id}',this.value)">${Object.entries(ROLE).map(([k,l])=>`<option value="${k}" ${u.role===k?'selected':''}>${l}</option>`).join('')}</select></td><td class="n">${u.id===me.id?'<span class="hint">(vous)</span>':''}</td></tr>`).join('')}</table></div>
+ <div class="panel scroll"><table><tr><th>Nom</th><th>Rôle</th>${isAdmin()?'<th>Nouveau mot de passe</th>':''}<th class="n"></th></tr>${list.map(u=>`<tr><td><input value="${esc(u.name)}" onchange="renameUser('${u.id}',this.value)" style="min-width:140px"></td><td><select onchange="setRole('${u.id}',this.value)">${Object.entries(ROLE).map(([k,l])=>`<option value="${k}" ${u.role===k?'selected':''}>${l}</option>`).join('')}</select></td>${isAdmin()?`<td><div class="row" style="margin:0"><input type="password" id="pw_${u.id}" placeholder="6 caractères min." style="min-width:120px"><button class="btn ghost" onclick="resetPassword('${u.id}')">Réinitialiser</button></div></td>`:''}<td class="n">${u.id===me.id?'<span class="hint">(vous)</span>':''}</td></tr>`).join('')}</table></div>
+ ${isAdmin()?`<p class="hint">Réinitialiser un mot de passe fonctionne une fois la fonction Supabase <code>reset-password</code> déployée (voir README).</p>`:''}
  <p class="hint">Vendeur : ventes et consultation. Magasinier : produits et entrées. Administrateur : tout, y compris profit et utilisateurs.</p>`;
+}
+async function resetPassword(id){
+ const el=$('#pw_'+id),password=el.value;
+ if(!password||password.length<6){toast('Mot de passe : 6 caractères minimum');return}
+ const{data,error}=await sb.functions.invoke('reset-password',{body:{userId:id,password}});
+ if(error||data?.error){toast((data&&data.error)||error.message||'Erreur lors de la réinitialisation');return}
+ el.value='';toast('Mot de passe mis à jour 🎉')
 }
 async function createUser(){
  const name=$('#nun').value.trim(),email=$('#nue').value.trim(),password=$('#nup').value,role=$('#nur').value;

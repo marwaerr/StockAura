@@ -8,7 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body class="loggedout">
 <div class="app">
 <nav id="nav"></nav>
 <main id="main"><p class="sub">Chargement…</p></main>
@@ -117,6 +117,7 @@ async function refreshCats(){await loadCategories();await render()}
 
 /* ---------- Rendu principal ---------- */
 async function render(){
+ document.body.classList.toggle('loggedout',!session||!me);
  if(!session||!me){$('#nav').innerHTML='';$('#main').innerHTML=loginView();return}
  if(!products.length)products=await loadProducts();
  if(!categories.length)await loadCategories();

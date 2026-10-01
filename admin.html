@@ -584,9 +584,24 @@ async function ordersTab(){
  }).join('');
 }
 async function setOrderStatus(id,status){
- const{error}=await sb.from('orders').update({status}).eq('id',id);
+ const{data:order}=await sb.from('orders').select('*').eq('id',id).single();
+ if(!order){toast('Commande introuvable');return}
+ const shouldDeduct=(status==='confirmee'||status==='livree')&&!order.stock_deducted;
+ const shouldRestore=status==='annulee'&&order.stock_deducted;
+ if(shouldDeduct||shouldRestore){
+  const{data:items}=await sb.from('order_items').select('*').eq('order_id',id);
+  for(const it of items||[]){
+   const pv=prodOf(it.variant_id);if(!pv)continue;
+   const newQty=shouldDeduct?pv.v.quantity-it.qty:pv.v.quantity+it.qty;
+   await sb.from('variants').update({quantity:newQty}).eq('id',it.variant_id);
+   pv.v.quantity=newQty;
+   await sb.from('moves').insert({type:shouldDeduct?'out':'return',variant_id:it.variant_id,qty:it.qty,unit_price:it.unit_price,cost:pv.p.cost||0,payment:null,ref:shouldDeduct?'Commande site':'Commande site annulée',by:me.id});
+  }
+ }
+ const{error}=await sb.from('orders').update({status,stock_deducted:shouldDeduct?true:(shouldRestore?false:order.stock_deducted)}).eq('id',id);
  if(error){toast(error.message);return}
- toast('Statut mis à jour');await checkPendingOrders(false);await render()
+ toast(shouldDeduct?'Statut mis à jour — stock déduit 📦':shouldRestore?'Commande annulée — stock remis à jour':'Statut mis à jour');
+ await checkPendingOrders(false);await refresh()
 }
 async function generalTab(){
  const{data}=await sb.from('site_settings').select('*').in('key',['shipping_message','shipping_threshold']);

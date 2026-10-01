@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>StockAura — Gestion</title>
+<title>Ola Bébé — Gestion</title>
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
@@ -47,13 +47,19 @@ const isAdmin=()=>me&&me.role==='admin';
 async function boot(){
  const {data}=await sb.auth.getSession();
  session=data.session;
- if(session)await loadMe();
+ if(session){await loadMe();await checkPendingOrders(true)}
  render();
 }
-sb.auth.onAuthStateChange(async(_e,s)=>{session=s;if(s)await loadMe();else me=null;render()});
+sb.auth.onAuthStateChange(async(_e,s)=>{session=s;if(s){await loadMe();await checkPendingOrders(true)}else me=null;render()});
 async function loadMe(){
  const{data,error}=await sb.from('profiles').select('*').eq('id',session.user.id).single();
  if(!error)me=data;
+}
+let pendingOrders=0;
+async function checkPendingOrders(notify){
+ const{count}=await sb.from('orders').select('id',{count:'exact',head:true}).eq('status','nouveau');
+ pendingOrders=count||0;
+ if(notify&&pendingOrders>0&&isAdmin())toast(pendingOrders+' nouvelle(s) commande(s) à valider 🛍️');
 }
 async function doLogin(){
  const idf=$('#li').value.trim(),pw=$('#lp').value;
@@ -64,7 +70,7 @@ async function doLogin(){
  if(error){toast('Identifiant ou mot de passe incorrect');$('#lbtn').textContent='Se connecter'}
 }
 function loginView(){
- return `<div class="login-wrap"><h1>StockAura 🎉</h1><p class="sub">Connectez-vous pour accéder à votre boutique.</p>
+ return `<div class="login-wrap"><h1>Ola Bébé 🎉</h1><p class="sub">Connectez-vous pour accéder à votre boutique.</p>
  <div class="card"><label for="li">Identifiant</label><input id="li" style="margin-bottom:12px" autocomplete="username">
  <label for="lp">Mot de passe</label><input id="lp" type="password" style="margin-bottom:16px" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
  <button class="btn" id="lbtn" onclick="doLogin()">Se connecter</button></div>
@@ -79,8 +85,8 @@ const ic=n=>`<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke=
 /* ---------- Nav ---------- */
 function renderNav(){
  const items=[['menu',t('menu'),'home'],['home',t('home'),'trend'],['products',t('products'),'box'],['entries',t('entries'),'in'],['sales',t('sales'),'cart'],['returns',t('returns'),'in'],['cash',t('cash'),'wallet'],['history',t('history'),'list'],['profit',t('profit'),'trend'],['site','Site','megaphone'],['users',t('users'),'users']].filter(x=>can(x[0]));
- $('#nav').innerHTML='<div class="logo">StockAura</div><div class="me"><i>'+esc(displayName(me.name).slice(0,2).toUpperCase())+'</i><b>'+esc(displayName(me.name))+'</b><span>'+ROLE[me.role]+'</span></div>'
- +items.map(([k,l,i])=>`<button data-c="${k}" class="${view===k?'on':''}" onclick="go('${k}')">${ic(i)}${l}</button>`).join('')
+ $('#nav').innerHTML='<div class="logo">Ola Bébé</div><div class="me"><i>'+esc(displayName(me.name).slice(0,2).toUpperCase())+'</i><b>'+esc(displayName(me.name))+'</b><span>'+ROLE[me.role]+'</span></div>'
+ +items.map(([k,l,i])=>`<button data-c="${k}" class="${view===k?'on':''}" onclick="go('${k}')">${ic(i)}${l}${k==='site'&&pendingOrders>0?`<span class="navbadge">${pendingOrders}</span>`:''}</button>`).join('')
  +`<div class="spacer"></div>
  <div class="row" style="margin:0 0 8px;gap:6px"><button class="tg" aria-label="Mode sombre" onclick="toggleTheme()" style="flex:none"></button><select onchange="setLang(this.value)" style="min-height:32px;padding:2px 6px"><option value="fr" ${lang==='fr'?'selected':''}>FR</option><option value="ar" ${lang==='ar'?'selected':''}>AR</option></select></div>
  <button class="small" onclick="logout()">${t('logout')}</button>`;
@@ -538,18 +544,43 @@ let newPromoImg=null;
 function pickPromoImg(inp){newPromoImg=inp.files[0]||null;const r=$('#mimgp');if(!r)return;if(newPromoImg){const rd=new FileReader();rd.onload=()=>r.innerHTML=`<img src="${rd.result}" alt="" style="width:100%;max-width:320px;aspect-ratio:2.43/1;object-fit:cover;border-radius:10px;margin-top:8px">`;rd.readAsDataURL(newPromoImg)}else r.innerHTML=''}
 let siteTab='promotions';
 function siteNav(){
- const tabs=[['promotions','Promotions'],['reviews','Avis'],['departments','Rayons'],['categories','Catégories'],['brands','Marques'],['general','Général']];
- return `<div class="seg" style="margin-bottom:18px">${tabs.map(([k,l])=>`<button class="${siteTab===k?'on':''}" onclick="siteTab='${k}';render()">${l}</button>`).join('')}</div>`;
+ const tabs=[['orders','Commandes'+(pendingOrders>0?` (${pendingOrders})`:'')],['promotions','Promotions'],['reviews','Avis'],['departments','Rayons'],['categories','Catégories'],['brands','Marques'],['general','Général']];
+ return `<div class="seg" style="margin-bottom:18px;flex-wrap:wrap">${tabs.map(([k,l])=>`<button class="${siteTab===k?'on':''}" onclick="siteTab='${k}';render()">${l}</button>`).join('')}</div>`;
 }
 async function site(){
  let body='';
- if(siteTab==='promotions')body=await promoTab();
+ if(siteTab==='orders')body=await ordersTab();
+ else if(siteTab==='promotions')body=await promoTab();
  else if(siteTab==='reviews')body=await reviewTab();
  else if(siteTab==='departments')body=deptTab();
  else if(siteTab==='categories')body=catTab();
  else if(siteTab==='general')body=await generalTab();
  else body=brandTab();
  return `<h1>Site</h1><p class="sub">Tout ce qui est visible par vos clientes et clients sur le site vitrine.</p>${siteNav()}${body}`;
+}
+async function ordersTab(){
+ const{data:ords}=await sb.from('orders').select('*').order('created_at',{ascending:false});
+ const list=ords||[];
+ let itemsByOrder={};
+ if(list.length){
+  const{data:allItems}=await sb.from('order_items').select('*, variants(variant,color,product_id)').in('order_id',list.map(o=>o.id));
+  (allItems||[]).forEach(i=>{(itemsByOrder[i.order_id]=itemsByOrder[i.order_id]||[]).push(i)});
+ }
+ const STLBL={nouveau:'Nouveau',confirmee:'Confirmée',livree:'Livrée',annulee:'Annulée'};
+ if(!list.length)return '<div class="panel empty">Aucune commande pour le moment.</div>';
+ return list.map(o=>{
+  const its=itemsByOrder[o.id]||[];
+  return `<div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap">
+  <div><b>${esc(o.customer_name)}</b> · ${esc(o.phone)}${o.address?' · '+esc(o.address):''}<br><span class="hint">${fd((o.created_at||'').slice(0,10))}</span></div>
+  <select onchange="setOrderStatus('${o.id}',this.value)">${Object.entries(STLBL).map(([k,l])=>`<option value="${k}" ${o.status===k?'selected':''}>${l}</option>`).join('')}</select></div>
+  <div class="panel scroll"><table><tr><th>Article</th><th class="n">Qté</th><th class="n">Prix</th></tr>${its.map(i=>`<tr><td>${esc(products.find(p=>p.id===i.variants?.product_id)?.name||'(produit supprimé)')} · ${esc(i.variants?.variant||'')} · ${esc(i.variants?.color||'')}</td><td class="n">${i.qty}</td><td class="n">${dh(i.unit_price*i.qty)}</td></tr>`).join('')}</table></div>
+  <div class="total" style="margin-top:8px">Total : ${dh(o.total)}</div>${o.note?`<p class="hint">Note : ${esc(o.note)}</p>`:''}</div>`;
+ }).join('');
+}
+async function setOrderStatus(id,status){
+ const{error}=await sb.from('orders').update({status}).eq('id',id);
+ if(error){toast(error.message);return}
+ toast('Statut mis à jour');await checkPendingOrders(false);await render()
 }
 async function generalTab(){
  const{data}=await sb.from('site_settings').select('*').eq('key','shipping_message').single();

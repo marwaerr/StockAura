@@ -281,6 +281,7 @@ footer .fc a,footer .fc span{display:flex;gap:6px;align-items:flex-start}
  .pmodal .pm-img{aspect-ratio:4/3}
  .pmodal .pm-info{overflow:visible;padding:16px 18px calc(22px + env(safe-area-inset-bottom,0px))}
 }
+.pmodal .pm-desc h4{margin:0 0 6px;font:600 13px Poppins,sans-serif;color:var(--ink)}
 </style>
 </head>
 <body>
@@ -598,10 +599,10 @@ function openProduct(pid,vid){
     <div class="pm-price"><b>${dh(price)}</b>${pct?`<s>${dh(p.price)}</s><span class="pm-save">Économisez ${dh(p.price-price)}</span>`:''}</div>
     <span class="pm-stock ${st[1]}">● ${st[0]}</span>
     ${p.variants.length>1?`<div class="pm-opt"><span>Choisissez :</span><div class="pm-chips">${p.variants.map(x=>`<button class="${x.id===v.id?'on':''}${x.quantity<=0?' off':''}" onclick="openProduct('${pid}','${x.id}')">${esc(vlabel(x)||'Standard')}</button>`).join('')}</div></div>`:(vlabel(v)?`<p class="pm-var">${esc(vlabel(v))}</p>`:'')}
-    ${p.description?`<div class="pm-desc">${esc(p.description)}</div>`:''}
     <div class="pm-buy">${v.quantity<=0?'<button class="pm-add" disabled>Indisponible pour le moment</button>':inCart?`<div class="pm-qty"><button aria-label="Retirer un" onclick="changeQty('${v.id}',-1);openProduct('${pid}','${v.id}')">−</button><b>${inCart}</b><button aria-label="Ajouter un" onclick="changeQty('${v.id}',1);openProduct('${pid}','${v.id}')">+</button></div><button class="pm-add" onclick="closeProduct();openCart()">Voir mon panier →</button>`:`<button class="pm-add" onclick="addToCart('${v.id}');openProduct('${pid}','${v.id}')">🛒 Ajouter au panier</button>`}</div>
     <a class="pm-wa" data-wa data-msg="Bonjour, j'ai une question sur : ${esc(p.name)}" href="#" target="_blank" rel="noopener">💬 Une question ? Écrivez-nous sur WhatsApp</a>
     <ul class="pm-perks"><li>🚚 Livraison rapide partout au Maroc</li><li>💳 Paiement cash ou carte à la livraison</li></ul>
+    ${p.description?`<div class="pm-desc"><h4>Description</h4>${esc(p.description)}</div>`:''}
    </div></div>`;
   anim=false;
   applyPhone();

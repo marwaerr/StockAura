@@ -88,10 +88,13 @@ header{background:var(--card);position:sticky;top:0;z-index:10;box-shadow:0 1px 
 .ctabs button.on{background:var(--pink);border-color:var(--pink);color:#fff}.ctabs button.on small{color:#ffe3ea}
 .catrow{display:flex;gap:14px;overflow-x:auto;scroll-behavior:smooth;scroll-snap-type:x proximity;padding:6px 4px 10px;flex:1;scrollbar-width:none}
 .catrow::-webkit-scrollbar{display:none}
-.catrow .cat{flex:none;width:100px;scroll-snap-align:start}
+.catrow .cat{flex:none;width:136px;scroll-snap-align:start}
+.catrow .cat .im{width:116px;height:116px;font-size:42px}
+.catrow.fade .cat{animation:catIn .5s ease both}
+@keyframes catIn{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:none}}
 .catrow .cat:first-child{margin-left:auto}.catrow .cat:last-child{margin-right:auto}
-.catrow .cat h3{font-size:11.5px;line-height:1.3;white-space:normal}
-@media(max-width:640px){.ctabs{flex-wrap:nowrap;justify-content:flex-start;overflow-x:auto;scrollbar-width:none;margin:0 -20px 14px;padding:0 20px}.ctabs::-webkit-scrollbar{display:none}#cats .slidebtn{display:none}.catrow .cat{width:84px}}
+.catrow .cat h3{font-size:13px;line-height:1.3;white-space:normal}
+@media(max-width:640px){.ctabs{flex-wrap:nowrap;justify-content:flex-start;overflow-x:auto;scrollbar-width:none;margin:0 -20px 14px;padding:0 20px}.ctabs::-webkit-scrollbar{display:none}#cats .slidebtn{display:none}.catrow .cat{width:108px}.catrow .cat .im{width:92px;height:92px;font-size:34px}}
 .cats{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:18px 10px}
 .cat{all:unset;cursor:pointer;text-align:center;transition:.2s;display:flex;flex-direction:column;align-items:center;gap:8px}
 .cat:hover{transform:translateY(-3px)}
@@ -380,9 +383,39 @@ function renderStats(list){
  el.querySelectorAll('b').forEach(b=>{const m=(b.dataset.v||'').match(/^(\D*)(\d[\d\s.,]*)(.*)$/);if(m)b.textContent=m[1]+'0'+m[3];io.observe(b)});
 }
 let catTab=null;
-function setCatTab(d){catTab=d;renderCats()}
-function slideCats(dir){const el=$('#catrow');if(el)el.scrollBy({left:dir*300,behavior:'smooth'})}
-function renderCats(){
+function setCatTab(d){catTab=d;catHold=performance.now()+3000;renderCats()}
+function slideCats(dir){const el=$('#catrow');if(!el)return;catHold=performance.now()+3000;el.scrollBy({left:dir*300,behavior:'smooth'})}
+/* Défilement automatique des catégories, rayon par rayon */
+let catRAF=null,catHold=0,catVisible=true;
+const CAT_SPEED=22; // pixels par seconde : plus petit = plus lent
+const CAT_PAUSE_END=2500; // pause (ms) à la fin d'un rayon avant de passer au suivant
+function startCatAuto(){
+ cancelAnimationFrame(catRAF);
+ const el=$('#catrow');if(!el||window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+ el.style.scrollSnapType='none';el.style.scrollBehavior='auto';
+ let pos=0,last=performance.now(),paused=false,waitUntil=performance.now()+1800,endAt=0;
+ el.onmouseenter=()=>paused=true;el.onmouseleave=()=>paused=false;
+ el.ontouchstart=()=>paused=true;el.ontouchend=()=>{paused=false;catHold=performance.now()+2500};
+ const step=now=>{
+  if(!el.isConnected)return;
+  const dt=Math.min(.1,(now-last)/1000);last=now;
+  if(paused||now<catHold||!catVisible||document.hidden){pos=el.scrollLeft;endAt=0;waitUntil=Math.max(waitUntil,now+600)}
+  else if(now>=waitUntil){
+   const max=el.scrollWidth-el.clientWidth;
+   if(pos<max-1){pos=Math.min(max,pos+CAT_SPEED*dt);el.scrollLeft=pos;endAt=0}
+   else{if(!endAt)endAt=now;if(now-endAt>CAT_PAUSE_END){nextCatTab();return}}
+  }
+  catRAF=requestAnimationFrame(step);
+ };
+ catRAF=requestAnimationFrame(step);
+}
+function nextCatTab(){
+ const tabs=depts.filter(d=>categoriesByDept(d.name).length);
+ if(activeDept||tabs.length<2){const el=$('#catrow');if(el)el.scrollTo({left:0,behavior:'smooth'});setTimeout(startCatAuto,900);return}
+ const i=tabs.findIndex(d=>d.name===catTab);catTab=tabs[(i+1)%tabs.length].name;renderCats(true);
+}
+if('IntersectionObserver' in window)document.addEventListener('DOMContentLoaded',()=>{const sec=document.getElementById('cats');if(sec)new IntersectionObserver(es=>{catVisible=es[0].isIntersecting},{threshold:.2}).observe(sec)});
+function renderCats(fade){
  const all=categories();
  const tabs=depts.filter(d=>categoriesByDept(d.name).length);
  if(activeDept)catTab=activeDept;
@@ -390,7 +423,10 @@ function renderCats(){
  const list=catTab?categoriesByDept(catTab):all;
  const cardOf=(c,i)=>{const row=cats.find(x=>x.name===c);return `<button class="cat ${activeCat===c?'on':''}" onclick="pickCat('${esc(c)}')"><div class="im" style="background:${row&&row.image_url?`center/cover url('${esc(row.image_url)}')`:CAT_BG[i%CAT_BG.length]}">${row&&row.image_url?'':catIcon(c)}<i>${catIcon(c)}</i></div><h3>${esc(c)}</h3></button>`};
  $('#catwrap').innerHTML=all.length?`${tabs.length?`<div class="ctabs" role="tablist">${tabs.map(d=>`<button role="tab" aria-selected="${catTab===d.name}" class="${catTab===d.name?'on':''}" onclick="setCatTab('${esc(d.name)}')">${esc(d.name)} <small>${categoriesByDept(d.name).length}</small></button>`).join('')}</div>`:''}
- <div class="slider-wrap"><button class="slidebtn" aria-label="Précédent" onclick="slideCats(-1)">‹</button><div class="catrow" id="catrow">${list.map(cardOf).join('')}</div><button class="slidebtn" aria-label="Suivant" onclick="slideCats(1)">›</button></div>`:'<div class="panel empty">Les catégories apparaîtront ici dès que vous en aurez créé.</div>';
+ <div class="slider-wrap"><button class="slidebtn" aria-label="Précédent" onclick="slideCats(-1)">‹</button><div class="catrow${fade?' fade':''}" id="catrow">${list.map(cardOf).join('')}</div><button class="slidebtn" aria-label="Suivant" onclick="slideCats(1)">›</button></div>`:'<div class="panel empty">Les catégories apparaîtront ici dès que vous en aurez créé.</div>';
+ const tb=document.querySelector('.ctabs'),on=tb&&tb.querySelector('button.on');
+ if(tb&&on&&tb.scrollWidth>tb.clientWidth)tb.scrollTo({left:on.offsetLeft-(tb.clientWidth-on.offsetWidth)/2,behavior:'smooth'});
+ startCatAuto();
 }
 function renderBrands(){
  const b=brands();

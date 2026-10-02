@@ -707,8 +707,18 @@ async function ordersTab(){
   <div><b>${esc(o.customer_name)}</b> · ${esc(o.phone)}${o.address?' · '+esc(o.address):''}<br><span class="hint">${fd((o.created_at||'').slice(0,10))}</span></div>
   <select onchange="setOrderStatus('${o.id}',this.value)">${Object.entries(STLBL).map(([k,l])=>`<option value="${k}" ${o.status===k?'selected':''}>${l}</option>`).join('')}</select></div>
   <div class="panel scroll"><table><tr><th>Article</th><th class="n">Qté</th><th class="n">Prix</th></tr>${its.map(i=>`<tr><td>${esc(products.find(p=>p.id===i.variants?.product_id)?.name||'(produit supprimé)')} · ${esc(i.variants?.variant||'')} · ${esc(i.variants?.color||'')}</td><td class="n">${i.qty}</td><td class="n">${dh(i.unit_price*i.qty)}</td></tr>`).join('')}</table></div>
-  <div class="total" style="margin-top:8px">Total : ${dh(o.total)}</div>${o.note?`<p class="hint">Note : ${esc(o.note)}</p>`:''}</div>`;
+  <div class="row" style="justify-content:space-between;align-items:center;margin:8px 0 0"><div class="total" style="margin:0">Total : ${dh(o.total)}</div>${isAdmin()?`<button class="btn ghost" style="color:var(--bad)" onclick="delOrder('${o.id}')">🗑 Supprimer</button>`:''}</div>${o.note?`<p class="hint">Note : ${esc(o.note)}</p>`:''}</div>`;
  }).join('');
+}
+async function delOrder(id){
+ const{data:o}=await sb.from('orders').select('*').eq('id',id).single();
+ if(!o){toast('Commande introuvable');return}
+ if(o.stock_deducted){alert('Cette commande a déjà été confirmée ou livrée : son stock a été déduit.\n\nPassez-la d\'abord en « Annulée » (le stock sera remis), puis supprimez-la.');return}
+ if(!confirm(`Supprimer définitivement la commande de ${o.customer_name} ?`))return;
+ await sb.from('order_items').delete().eq('order_id',id);
+ const{error}=await sb.from('orders').delete().eq('id',id);
+ if(error){toast('Suppression impossible : '+error.message);return}
+ toast('Commande supprimée');await checkPendingOrders(false);await render()
 }
 async function setOrderStatus(id,status){
  const{data:order}=await sb.from('orders').select('*').eq('id',id).single();

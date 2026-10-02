@@ -154,6 +154,7 @@ async function render(){
  const selEnd=keepId&&ae.selectionEnd!=null?ae.selectionEnd:null;
  const html=await views[view]();
  $('#main').innerHTML=html;
+ document.body.classList.toggle('modal-open',view==='products'&&!!editingId);
  restoreDrafts();
  window.scrollTo(0,y);
  if(keepId){const el=document.getElementById(keepId);if(el){el.focus();if(selStart!=null){try{el.setSelectionRange(selStart,selEnd)}catch(e){}}}}
@@ -367,14 +368,16 @@ function productsView(){
  ${bulkTable()}`:''}
  <div class="row"><input type="search" placeholder="${t('search')} (nom, catégorie, marque, code-barres)" value="${esc(prodQ)}" oninput="prodQ=this.value;go('products')"></div>
  ${c.length?`<div class="panel scroll"><table><tr><th></th><th>${t('product')}</th><th>Marque</th><th>${t('category')}</th><th>Taille</th><th>Couleur</th><th>${t('barcode')}</th><th class="n">${t('stock')}</th>${ad?'<th class="n">Achat</th>':''}<th class="n">${t('price')}</th>${ed?'<th class="n">Nouveau</th><th class="n">Promo</th><th class="n">Site</th><th class="n"></th>':''}</tr>${c.map(x=>{const first=!seen.has(x.p.id);seen.add(x.p.id);return `<tr><td>${th(x.p)}</td><td><b>${esc(x.p.name)}</b></td><td>${esc(x.p.brand||'—')}</td><td>${esc(x.p.category||'—')}${x.p.subcategory?' : '+esc(x.p.subcategory):''}</td><td>${esc(x.v.variant)}</td><td>${esc(x.v.color)}</td><td>${esc(x.v.barcode||'—')}</td><td class="n">${x.q<=(x.p.low_threshold||LOW)?`<span class="pill ${x.q<=0?'zero':''}">${x.q}</span>`:x.q}</td>${ad?`<td class="n">${dh(x.p.cost)}</td>`:''}<td class="n">${x.p.on_sale&&x.p.sale_price?`<s>${dh(x.p.price)}</s> ${dh(x.p.sale_price)}`:dh(x.p.price)}</td>${ed?`<td class="n"><button class="tgsw ${x.p.is_new?'on':''}" onclick="this.classList.toggle('on');toggleFlag('${x.p.id}','is_new',${!!x.p.is_new})"></button></td><td class="n"><button class="tgsw ${x.p.on_sale?'on':''}" onclick="this.classList.toggle('on');toggleFlag('${x.p.id}','on_sale',${!!x.p.on_sale})"></button></td><td class="n"><button class="tgsw ${x.p.visible?'on':''}" onclick="this.classList.toggle('on');toggleVisible('${x.p.id}',${x.p.visible})"></button></td><td class="n">${first?`<button class="btn ghost" onclick="editProduct('${x.p.id}')">✏️ Modifier</button>${ad?` <button class="btn ghost" style="color:var(--bad)" onclick="delProduct('${x.p.id}')">Supprimer</button>`:''}`:''}</td>`:''}</tr>`}).join('')}</table></div>`:'<div class="panel empty">Aucun produit trouvé.</div>'}
- ${ed&&editingId?editForm(editingId):''}`;
+ ${ed&&editingId?`<div class="modal-bg" onclick="if(event.target===this)closeEdit()"><div class="modal" role="dialog" aria-modal="true">${editForm(editingId)}</div></div>`:''}`;
 }
+function closeEdit(){clearDrafts();editingId=null;render()}
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&editingId&&view==='products')closeEdit()});
 function editProduct(id){clearDrafts();editingId=editingId===id?null:id;render(true)}
 function editSubOptions(catName,sel){const cat=categories.find(c=>c.name===catName);const subs=cat?subcategories.filter(s=>s.category_id===cat.id):[];return`<select id="esub"><option value="">— Aucune —</option>${subs.map(s=>`<option value="${esc(s.name)}" ${sel===s.name?'selected':''}>${esc(s.name)}</option>`).join('')}</select>`}
 function onEditCatChange(){$('#esubwrap').innerHTML=editSubOptions($('#ecat').value,'')}
 function editForm(id){
  const p=products.find(x=>x.id===id);if(!p)return'';
- return `<div class="card"><h2 style="margin-top:0">Modifier « ${esc(p.name)} »</h2>
+ return `<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:10px"><h2 style="margin:0">Modifier « ${esc(p.name)} »</h2><button class="modal-x" onclick="closeEdit()" aria-label="Fermer">✕</button></div>
  <div class="grid"><div><label for="ename">Nom</label><input id="ename" value="${esc(p.name)}"></div><div><label for="ebrand">Marque</label><select id="ebrand"><option value="">— Choisir —</option>${brands.map(b=>`<option value="${esc(b.name)}" ${p.brand===b.name?'selected':''}>${esc(b.name)}</option>`).join('')}</select></div></div>
  <div class="grid"><div><label for="eprice">Prix de vente (DH)</label><input id="eprice" type="number" min="0" step="any" value="${p.price}"></div>${isAdmin()?`<div><label for="ecost">Prix d'achat (DH)</label><input id="ecost" type="number" min="0" step="any" value="${p.cost||0}"></div>`:''}</div>
  <div class="grid"><div><label for="ecat">Catégorie</label><select id="ecat" onchange="onEditCatChange()">${departments.map(d=>`<optgroup label="${esc(d.name)}">${categories.filter(c=>c.department_id===d.id).map(c=>`<option value="${esc(c.name)}" ${p.category===c.name?'selected':''}>${esc(c.name)}</option>`).join('')}</optgroup>`).join('')}${categories.filter(c=>!c.department_id).map(c=>`<option value="${esc(c.name)}" ${p.category===c.name?'selected':''}>${esc(c.name)}</option>`).join('')}</select></div><div><label for="esub">Sous-catégorie</label><div id="esubwrap">${editSubOptions(p.category,p.subcategory)}</div></div></div>

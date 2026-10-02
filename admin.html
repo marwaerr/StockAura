@@ -39,6 +39,26 @@ function setLang(l){lang=l;localStorage.setItem('sa_lang',l);document.documentEl
 const displayName=n=>n&&n.includes('@')?n.split('@')[0]:n;
 let hist={type:'all',q:''}, entryLines=[{}], cart=[{}], saleMeta={disc:'pct',discVal:'',payment:'cash',given:''}, lastReceipt=null, ret={}, cm={amount:'',note:''}, prodQ='';
 
+/* ---------- Brouillons de formulaires ---------- */
+let drafts={},fileDrafts={};
+const NO_DRAFT=/^(cq|cpr|eq)\d+$|^(sdisc|sgiven|sc)$/;
+function clearDrafts(){drafts={};fileDrafts={}}
+function draftable(el){return el&&el.id&&!NO_DRAFT.test(el.id)&&el.type!=='search'&&!el.disabled&&/^(INPUT|SELECT|TEXTAREA)$/.test(el.tagName)}
+function recordDraft(e){const el=e.target;if(!draftable(el))return;if(el.type==='file'){fileDrafts[el.id]=[...el.files];return}drafts[el.id]=(el.type==='checkbox'||el.type==='radio')?el.checked:el.value}
+document.addEventListener('input',recordDraft,true);document.addEventListener('change',recordDraft,true);
+function restoreDrafts(){
+ for(const id of Object.keys(drafts)){
+  const el=document.getElementById(id);if(!el||!draftable(el)||el.type==='file')continue;
+  const v=drafts[id];
+  if(el.type==='checkbox'||el.type==='radio'){if(el.checked!==v){el.checked=v;el.dispatchEvent(new Event('change'))}}
+  else if(el.value!==v){el.value=v;if(el.tagName==='SELECT'){if(el.onchange)el.onchange()}else if(el.oninput)el.oninput()}
+ }
+ for(const id of Object.keys(fileDrafts)){
+  const el=document.getElementById(id);if(!el||!fileDrafts[id].length)continue;
+  try{const dt=new DataTransfer();fileDrafts[id].forEach(f=>dt.items.add(f));el.files=dt.files;if(el.onchange)el.onchange()}catch(e){}
+ }
+}
+function cancelAddProduct(){clearDrafts();newPhotoFile=null;render()}
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2400)}
 function can(v){return me&&PERM[me.role]?.includes(v)}
 const isAdmin=()=>me&&me.role==='admin';
@@ -50,7 +70,12 @@ async function boot(){
  if(session){await loadMe();await checkPendingOrders(true);await checkPendingReviews(true)}
  render();
 }
-sb.auth.onAuthStateChange(async(_e,s)=>{session=s;if(s){await loadMe();await checkPendingOrders(true);await checkPendingReviews(true)}else me=null;render()});
+sb.auth.onAuthStateChange(async(e,s)=>{
+ const prev=session?.user?.id;session=s;
+ if(e==='INITIAL_SESSION'||e==='TOKEN_REFRESHED'||e==='USER_UPDATED')return; // pas de rechargement de l'écran
+ if(e==='SIGNED_IN'&&prev&&s&&s.user.id===prev&&me)return; // même utilisateur : on garde la saisie en cours
+ if(s){await loadMe();await checkPendingOrders(true);await checkPendingReviews(true)}else{me=null;clearDrafts()}
+ render()});
 async function loadMe(){
  const{data,error}=await sb.from('profiles').select('*').eq('id',session.user.id).single();
  if(!error)me=data;
@@ -129,6 +154,7 @@ async function render(){
  const selEnd=keepId&&ae.selectionEnd!=null?ae.selectionEnd:null;
  const html=await views[view]();
  $('#main').innerHTML=html;
+ restoreDrafts();
  window.scrollTo(0,y);
  if(keepId){const el=document.getElementById(keepId);if(el){el.focus();if(selStart!=null){try{el.setSelectionRange(selStart,selEnd)}catch(e){}}}}
 }
@@ -191,7 +217,7 @@ const th=p=>p.photo_url?`<img class="th" src="${esc(p.photo_url)}" alt="${esc(p.
 const parseList=s=>{const a=(s||'').split(',').map(x=>x.trim()).filter(Boolean);return a.length?a:['Standard']};
 function cbPreview(){
  const V=parseList($('#pv').value),C=parseList($('#pc').value);
- $('#cbx').innerHTML=V.length*C.length>1?'<label>Code-barres de chaque déclinaison (facultatif)</label>'+V.flatMap(v=>C.map(c=>`<div class="scan"><span class="cl">${esc(v)} · ${esc(c)}</span><input class="cbn" data-v="${esc(v)}" data-c="${esc(c)}" placeholder="Scanner ou saisir"></div>`)).join(''):'';
+ $('#cbx').innerHTML=V.length*C.length>1?'<label>Code-barres de chaque déclinaison (facultatif)</label>'+V.flatMap(v=>C.map(c=>`<div class="scan"><span class="cl">${esc(v)} · ${esc(c)}</span><input class="cbn" id="cbn_${esc(v)}_${esc(c)}" data-v="${esc(v)}" data-c="${esc(c)}" placeholder="Scanner ou saisir"></div>`)).join(''):'';
 }
 function catOptions(sel){
  const groups=departments.map(d=>`<optgroup label="${esc(d.name)}">${categories.filter(c=>c.department_id===d.id).map(c=>`<option value="${esc(c.name)}" ${sel===c.name?'selected':''}>${esc(c.name)}</option>`).join('')}</optgroup>`).join('');
@@ -274,13 +300,13 @@ function productsView(){
  <label style="display:flex;gap:8px;align-items:center;font-weight:400;margin:0 0 10px"><input type="checkbox" id="pnew" style="width:auto;min-height:auto">Marquer comme nouveauté</label>
  <label style="display:flex;gap:8px;align-items:center;font-weight:400;margin:0 0 10px"><input type="checkbox" id="psale" style="width:auto;min-height:auto" onchange="toggleSaleField(this)">En promotion</label>
  <div id="psaleprice" style="display:none;margin-bottom:12px"><label for="pspv">Prix promo (DH)</label><input id="pspv" type="number" min="0" step="any"></div>
- <button class="btn" onclick="addProduct()">${t('add')} le produit</button></div>
+ <div class="row" style="margin:0"><button class="btn" onclick="addProduct()">${t('add')} le produit</button><button class="btn ghost" onclick="cancelAddProduct()">Annuler</button></div></div>
  ${bulkTable()}`:''}
  <div class="row"><input type="search" placeholder="${t('search')} (nom, catégorie, marque, code-barres)" value="${esc(prodQ)}" oninput="prodQ=this.value;go('products')"></div>
  ${c.length?`<div class="panel scroll"><table><tr><th></th><th>${t('product')}</th><th>Marque</th><th>${t('category')}</th><th>Taille</th><th>Couleur</th><th>${t('barcode')}</th><th class="n">${t('stock')}</th>${ad?'<th class="n">Achat</th>':''}<th class="n">${t('price')}</th>${ed?'<th class="n">Nouveau</th><th class="n">Promo</th><th class="n">Site</th><th class="n"></th>':''}</tr>${c.map(x=>{const first=!seen.has(x.p.id);seen.add(x.p.id);return `<tr><td>${th(x.p)}</td><td><b>${esc(x.p.name)}</b></td><td>${esc(x.p.brand||'—')}</td><td>${esc(x.p.category||'—')}${x.p.subcategory?' : '+esc(x.p.subcategory):''}</td><td>${esc(x.v.variant)}</td><td>${esc(x.v.color)}</td><td>${esc(x.v.barcode||'—')}</td><td class="n">${x.q<=(x.p.low_threshold||LOW)?`<span class="pill ${x.q<=0?'zero':''}">${x.q}</span>`:x.q}</td>${ad?`<td class="n">${dh(x.p.cost)}</td>`:''}<td class="n">${x.p.on_sale&&x.p.sale_price?`<s>${dh(x.p.price)}</s> ${dh(x.p.sale_price)}`:dh(x.p.price)}</td>${ed?`<td class="n"><button class="tgsw ${x.p.is_new?'on':''}" onclick="this.classList.toggle('on');toggleFlag('${x.p.id}','is_new',${!!x.p.is_new})"></button></td><td class="n"><button class="tgsw ${x.p.on_sale?'on':''}" onclick="this.classList.toggle('on');toggleFlag('${x.p.id}','on_sale',${!!x.p.on_sale})"></button></td><td class="n"><button class="tgsw ${x.p.visible?'on':''}" onclick="this.classList.toggle('on');toggleVisible('${x.p.id}',${x.p.visible})"></button></td><td class="n">${first?`<button class="btn ghost" onclick="editProduct('${x.p.id}')">Modifier</button>`:''}</td>`:''}</tr>`}).join('')}</table></div>`:'<div class="panel empty">Aucun produit trouvé.</div>'}
  ${ed&&editingId?editForm(editingId):''}`;
 }
-function editProduct(id){editingId=editingId===id?null:id;render(true)}
+function editProduct(id){clearDrafts();editingId=editingId===id?null:id;render(true)}
 function editSubOptions(catName,sel){const cat=categories.find(c=>c.name===catName);const subs=cat?subcategories.filter(s=>s.category_id===cat.id):[];return`<select id="esub"><option value="">— Aucune —</option>${subs.map(s=>`<option value="${esc(s.name)}" ${sel===s.name?'selected':''}>${esc(s.name)}</option>`).join('')}</select>`}
 function onEditCatChange(){$('#esubwrap').innerHTML=editSubOptions($('#ecat').value,'')}
 function editForm(id){
@@ -298,7 +324,7 @@ function editForm(id){
  <h3 style="margin:16px 0 8px">Galerie de photos (visible sur la fiche produit du site)</h3>
  <div class="row">${(p.product_images||[]).map(im=>`<span style="position:relative;display:inline-block"><img src="${esc(im.image_url)}" style="width:64px;height:64px;object-fit:cover;border-radius:8px"><a href="#" onclick="delProductImage('${im.id}','${id}');return false" style="position:absolute;top:-6px;right:-6px;background:var(--bad);color:#fff;border-radius:50%;width:18px;height:18px;display:grid;place-items:center;font-size:11px;text-decoration:none">✕</a></span>`).join('')||'<span class="hint">Aucune photo supplémentaire</span>'}</div>
  <div class="row" style="margin-top:10px"><input id="egallery" type="file" accept="image/*" multiple><button class="btn ghost" onclick="addGalleryImages('${id}')">Ajouter ces photos</button></div>
- <div class="row" style="margin-top:16px"><button class="btn" onclick="saveEdit('${id}')">Enregistrer les modifications</button><button class="btn ghost" onclick="editingId=null;render(true)">Annuler</button></div></div>`;
+ <div class="row" style="margin-top:16px"><button class="btn" onclick="saveEdit('${id}')">Enregistrer les modifications</button><button class="btn ghost" onclick="clearDrafts();editingId=null;render(true)">Annuler</button></div></div>`;
 }
 async function saveEdit(id){
  const name=$('#ename').value.trim(),price=parseFloat($('#eprice').value);
@@ -310,7 +336,7 @@ async function saveEdit(id){
  if(error){toast(error.message);return}
  const f=$('#ephoto').files[0];
  if(f){const url=await uploadPhoto(f,id);if(url)await sb.from('products').update({photo_url:url}).eq('id',id)}
- editingId=null;toast('Produit mis à jour 🎉');await refresh()
+ editingId=null;clearDrafts();toast('Produit mis à jour 🎉');await refresh()
 }
 async function uploadGalleryPhoto(file,productId){
  const ext=(file.name.split('.').pop()||'jpg').toLowerCase(),path=`${productId}/${Date.now()}-${Math.random().toString(36).slice(2,7)}.${ext}`;
@@ -322,7 +348,7 @@ async function addGalleryImages(id){
  const files=[...($('#egallery').files||[])];
  if(!files.length){toast('Choisissez au moins une photo');return}
  for(const f of files){const url=await uploadGalleryPhoto(f,id);if(url)await sb.from('product_images').insert({product_id:id,image_url:url})}
- toast('Photos ajoutées 🎉');await refresh()
+ clearDrafts();toast('Photos ajoutées 🎉');await refresh()
 }
 async function delProductImage(imgId){await sb.from('product_images').delete().eq('id',imgId);await refresh()}
 async function addProduct(){
@@ -343,7 +369,7 @@ async function addProduct(){
  }
  const{error:e2}=await sb.from('variants').insert(rows);
  if(e2){toast('Produit créé mais erreur sur les déclinaisons : '+e2.message);return}
- toast('Produit ajouté 🎉');await refresh()
+ clearDrafts();toast('Produit ajouté 🎉');await refresh()
 }
 async function toggleVisible(id,cur){
  const{error}=await sb.from('products').update({visible:!cur}).eq('id',id);
@@ -429,7 +455,7 @@ async function saveEntries(suggestedRef){
  const total=ok.reduce((s,l)=>s+parseInt(l.q)*(prodOf(l.vid)?.p.price||0),0);
  if(realAmt!==null){await sb.from('purchase_notes').upsert({ref,actual_amount:realAmt,updated_at:new Date().toISOString()})}
  lastEntryReceipt={ref,date:$('#edt').value||today(),supplier:sup,by:me.name,total,actual:realAmt,items:ok.map(l=>({name:prodOf(l.vid)?.p.name+(prodOf(l.vid)?.v.variant!=='Standard'?' — '+prodOf(l.vid)?.v.variant:'')+(prodOf(l.vid)?.v.color&&prodOf(l.vid)?.v.color!=='Standard'?' '+prodOf(l.vid)?.v.color:''),q:parseInt(l.q),price:prodOf(l.vid)?.p.price||0}))};
- entryLines=[{}];toast(ok.length+' ligne(s) ajoutée(s) au stock — montant '+dh(total));await refresh()
+ entryLines=[{}];clearDrafts();toast(ok.length+' ligne(s) ajoutée(s) au stock — montant '+dh(total));await refresh()
 }
 
 /* ---------- Ventes ---------- */
@@ -469,7 +495,7 @@ async function saveSale(){
  const{data:saleId,error}=await sb.rpc('record_sale',{p_items:items,p_discount_type:saleMeta.disc,p_discount_value:parseFloat(saleMeta.discVal)||0,p_payment:saleMeta.payment,p_given:saleMeta.payment==='cash'?given:null,p_by:me.id});
  if(error){toast(error.message.includes('Stock')?'Stock insuffisant pour un article':error.message);return}
  lastReceipt={id:saleId,date:today(),items:ok.map(l=>({name:prodOf(l.vid)?.p.name,v:prodOf(l.vid)?.v.variant,c:prodOf(l.vid)?.v.color,q:parseInt(l.q),price:round2(parseFloat(l.price)*(tt.sub>0?tt.total/tt.sub:1))})),sub:tt.sub,discAmt:tt.dAmt,total:tt.total,payment:saleMeta.payment,given,change:round2(given-tt.total),by:me.name};
- cart=[{}];saleMeta={disc:'pct',discVal:'',payment:saleMeta.payment,given:''};toast('Vente enregistrée 🎉');await refresh()
+ cart=[{}];saleMeta={disc:'pct',discVal:'',payment:saleMeta.payment,given:''};clearDrafts();toast('Vente enregistrée 🎉');await refresh()
 }
 function receiptCard(){const r=lastReceipt;return `<div class="card" id="receipt"><div style="display:flex;align-items:center;gap:10px;margin-bottom:6px"><img src="logo.png" alt="" style="height:36px;width:36px;border-radius:8px;object-fit:cover"><h2 style="margin:0">Reçu</h2></div><p class="hint" style="margin:0 0 10px">${fd(r.date)} · ${esc(displayName(r.by))}</p>
  <div class="panel scroll"><table><tr><th>Article</th><th class="n">Qté</th><th class="n">Total</th></tr>${r.items.map(i=>`<tr><td>${esc(i.name)} · ${esc(i.v)} · ${esc(i.c)}</td><td class="n">${i.q}</td><td class="n">${dh(i.price*i.q)}</td></tr>`).join('')}</table></div>
@@ -495,7 +521,7 @@ async function saveReturn(){
  if(!ret.vid||!(q>0)||isNaN(pr)){toast('Complétez le produit, la quantité et le prix');return}
  const{error}=await sb.rpc('record_move',{p_variant_id:ret.vid,p_type:'return',p_qty:q,p_unit_price:pr,p_ref:null,p_supplier:null,p_payment:ret.cash!==false?'cash':'tpe',p_by:me.id});
  if(error){toast(error.message);return}
- ret={};toast('Retour enregistré, stock mis à jour');await refresh()
+ ret={};clearDrafts();toast('Retour enregistré, stock mis à jour');await refresh()
 }
 
 /* ---------- Caisse ---------- */
@@ -514,7 +540,7 @@ async function cash(){
 async function cashMove(type){const amt=parseFloat(cm.amount);if(!(amt>0)){toast('Indiquez un montant');return}
  const{error}=await sb.from('cash_moves').insert({type,amount:round2(amt),note:(cm.note||'').trim(),by:me.id});
  if(error){toast(error.message);return}
- cm={amount:'',note:''};toast('Mouvement de caisse enregistré');await render()
+ cm={amount:'',note:''};clearDrafts();toast('Mouvement de caisse enregistré');await render()
 }
 
 /* ---------- Historique ---------- */
@@ -624,20 +650,20 @@ async function saveStats(){
  const list=[0,1,2,3].map(i=>({value:$('#stv'+i).value.trim(),label:$('#stl'+i).value.trim()})).filter(x=>x.value||x.label);
  const{error}=await sb.from('site_settings').upsert({key:'stats',value:JSON.stringify(list)});
  if(error){toast(error.message);return}
- toast('Chiffres enregistrés 🎉')
+ clearDrafts();toast('Chiffres enregistrés 🎉')
 }
 async function savePhone(){
  const d=$('#sitephone').value.replace(/\D/g,'');
  if(!/^(0[5-7]\d{8}|212[5-7]\d{8})$/.test(d)){toast('Numéro invalide (ex. 0660704987)');return}
  const{error}=await sb.from('site_settings').upsert({key:'phone',value:d});
  if(error){toast(error.message);return}
- toast('Numéro enregistré 🎉')
+ clearDrafts();toast('Numéro enregistré 🎉')
 }
 async function saveShippingMsg(){
  const value=$('#shipmsg').value.trim(),threshold=$('#shipth').value.trim();
  const{error}=await sb.from('site_settings').upsert([{key:'shipping_message',value},{key:'shipping_threshold',value:threshold}]);
  if(error){toast(error.message);return}
- toast('Message enregistré 🎉')
+ clearDrafts();toast('Message enregistré 🎉')
 }
 function onPromoCatChange(){
  const cat=categories.find(c=>c.name===$('#mcat').value);
@@ -678,7 +704,7 @@ async function addPromo(){
   if(ids.length)await sb.from('promotion_products').insert(ids);
  }
  promoProductLines=[{}];promoMode='category';
- toast('Promotion publiée 🎉');await render()
+ clearDrafts();toast('Promotion publiée 🎉');await render()
 }
 async function movePromo(id,dir){
  const{data}=await sb.from('promotions').select('id,sort').order('sort');
@@ -707,7 +733,7 @@ async function addReview(){
  const name=$('#rvn').value.trim();if(!name){toast('Indiquez un nom');return}
  const{error}=await sb.from('reviews').insert({customer_name:name,rating:parseInt($('#rvr').value),comment:$('#rvc').value.trim()||null,approved:true});
  if(error){toast(error.message);return}
- toast('Avis publié 🎉');await render()
+ clearDrafts();toast('Avis publié 🎉');await render()
 }
 async function editReview(id,field,val){const{error}=await sb.from('reviews').update({[field]:val}).eq('id',id);if(error)toast(error.message);await render()}
 async function toggleReview(id,cur){const{error}=await sb.from('reviews').update({approved:!cur}).eq('id',id);if(error){toast(error.message);return}await checkPendingReviews(false);await render()}
@@ -728,7 +754,7 @@ async function addCategory(){
  const{data:c,error}=await sb.from('categories').insert({name,department_id:deptId}).select().single();
  if(error){toast(error.message);return}
  if(newCatImg){const url=await uploadSiteImage(newCatImg,`cat-${c.id}.${(newCatImg.name.split('.').pop()||'jpg').toLowerCase()}`);if(url)await sb.from('categories').update({image_url:url}).eq('id',c.id);newCatImg=null}
- $('#newcat').value='';toast('Catégorie ajoutée 🎉');await refreshCats()
+ $('#newcat').value='';clearDrafts();toast('Catégorie ajoutée 🎉');await refreshCats()
 }
 async function renameCategory(id,name){
  name=name.trim();if(!name){toast('Le nom ne peut pas être vide');return}
@@ -745,7 +771,7 @@ async function addSubcategory(catId,inputId){
  const el=document.getElementById(inputId),name=el.value.trim();if(!name){toast('Indiquez un nom');return}
  const{error}=await sb.from('subcategories').insert({category_id:catId,name});
  if(error){toast(error.message);return}
- el.value='';toast('Sous-catégorie ajoutée');await refreshCats()
+ el.value='';clearDrafts();toast('Sous-catégorie ajoutée');await refreshCats()
 }
 async function renameSubcategory(id,name){
  name=name.trim();if(!name){toast('Le nom ne peut pas être vide');return}
@@ -762,20 +788,20 @@ async function addDepartment(){
  const name=$('#newdept').value.trim();if(!name){toast('Indiquez un nom de rayon');return}
  const{error}=await sb.from('departments').insert({name});
  if(error){toast(error.message);return}
- $('#newdept').value='';toast('Rayon ajouté 🎉');await refreshCats()
+ $('#newdept').value='';clearDrafts();toast('Rayon ajouté 🎉');await refreshCats()
 }
 async function renameDepartment(id,name){name=name.trim();if(!name){toast('Le nom ne peut pas être vide');return}const{error}=await sb.from('departments').update({name}).eq('id',id);if(error){toast(error.message);return}await refreshCats()}
 async function delDepartment(id){if(confirm('Supprimer ce rayon ? Les catégories qui y sont rattachées resteront, mais sans rayon.')){await sb.from('departments').delete().eq('id',id);await refreshCats()}}
 /* ---- Modification (bouton Modifier) des rayons, catégories et sous-catégories ---- */
 let editingDept=null,editingCat=null,editingSub=null;
-function editDept(id){editingDept=editingDept===id?null:id;render(true)}
-function editCat(id){editingCat=editingCat===id?null:id;render(true)}
-function editSub(id){editingSub=editingSub===id?null:id;render(true)}
+function editDept(id){clearDrafts();editingDept=editingDept===id?null:id;render(true)}
+function editCat(id){clearDrafts();editingCat=editingCat===id?null:id;render(true)}
+function editSub(id){clearDrafts();editingSub=editingSub===id?null:id;render(true)}
 async function saveDept(id){
  const name=$('#edn').value.trim();if(!name){toast('Le nom ne peut pas être vide');return}
  const{error}=await sb.from('departments').update({name}).eq('id',id);
  if(error){toast(error.message);return}
- editingDept=null;toast('Rayon mis à jour 🎉');await refreshCats()
+ editingDept=null;clearDrafts();toast('Rayon mis à jour 🎉');await refreshCats()
 }
 function pickEditCatImg(inp){const f=inp.files[0],r=$('#ecip');if(!r)return;if(!f){r.innerHTML='';return}const rd=new FileReader();rd.onload=()=>r.innerHTML=`<img src="${rd.result}" alt="" style="width:64px;height:64px;border-radius:12px;object-fit:cover">`;rd.readAsDataURL(f)}
 async function saveCat(id){
@@ -791,7 +817,7 @@ async function saveCat(id){
   if(error){toast(error.message);return}
   if(patch.name)await sb.from('products').update({category:name}).eq('category',c.name);
  }
- editingCat=null;toast('Catégorie mise à jour 🎉');await refreshCats();if(patch.name)await refresh()
+ editingCat=null;clearDrafts();toast('Catégorie mise à jour 🎉');await refreshCats();if(patch.name)await refresh()
 }
 async function saveSub(id){
  const sc=subcategories.find(x=>x.id===id);if(!sc)return;
@@ -801,14 +827,14 @@ async function saveSub(id){
   if(error){toast(error.message);return}
   await sb.from('products').update({subcategory:name}).eq('subcategory',sc.name);
  }
- editingSub=null;toast('Sous-catégorie mise à jour 🎉');await refreshCats();await refresh()
+ editingSub=null;clearDrafts();toast('Sous-catégorie mise à jour 🎉');await refreshCats();await refresh()
 }
 function deptTab(){
  return `<p class="hint" style="margin:0 0 14px">Un rayon regroupe plusieurs catégories (ex. le rayon "Maman" peut contenir les catégories "Soins maman", "Tisanes"…). Les rayons s'affichent en haut du site.</p>
  <div class="card"><h2 style="margin-top:0">Nouveau rayon</h2>
  <div class="row"><input id="newdept" placeholder="Ex. Bébé"><button class="btn" onclick="addDepartment()">Ajouter</button></div></div>
  ${departments.length?`<div class="panel scroll"><table><tr><th>Nom</th><th class="n">Catégories</th><th class="n"></th></tr>${departments.map(d=>editingDept===d.id
-  ?`<tr style="background:var(--bg)"><td><input id="edn" value="${esc(d.name)}" style="min-width:160px" onkeydown="if(event.key==='Enter')saveDept('${d.id}')"></td><td class="n">${categories.filter(c=>c.department_id===d.id).length}</td><td class="n"><button class="btn" onclick="saveDept('${d.id}')">Enregistrer</button> <button class="btn ghost" onclick="editingDept=null;render(true)">Annuler</button></td></tr>`
+  ?`<tr style="background:var(--bg)"><td><input id="edn" value="${esc(d.name)}" style="min-width:160px" onkeydown="if(event.key==='Enter')saveDept('${d.id}')"></td><td class="n">${categories.filter(c=>c.department_id===d.id).length}</td><td class="n"><button class="btn" onclick="saveDept('${d.id}')">Enregistrer</button> <button class="btn ghost" onclick="clearDrafts();editingDept=null;render(true)">Annuler</button></td></tr>`
   :`<tr><td><b>${esc(d.name)}</b></td><td class="n">${categories.filter(c=>c.department_id===d.id).length}</td><td class="n"><button class="btn ghost" onclick="editDept('${d.id}')">✏️ Modifier</button> <button class="btn ghost" onclick="delDepartment('${d.id}')">Supprimer</button></td></tr>`).join('')}</table></div>`:'<div class="panel empty">Aucun rayon pour le moment.</div>'}`;
 }
 function categoryCard(c){
@@ -818,7 +844,7 @@ function categoryCard(c){
   ?`<div style="border:2px solid var(--acc);border-radius:12px;padding:14px;margin-bottom:12px"><h3 style="margin:0 0 12px">Modifier la catégorie</h3>
    <div class="grid"><div><label for="ecn">Nom</label><input id="ecn" value="${esc(c.name)}"></div><div><label for="ecd">Rayon</label><select id="ecd"><option value="">— Sans rayon —</option>${departments.map(d=>`<option value="${d.id}" ${c.department_id===d.id?'selected':''}>${esc(d.name)}</option>`).join('')}</select></div></div>
    <div class="row" style="align-items:flex-end"><div><label>Image actuelle</label>${img}</div><div style="flex:1;min-width:180px"><label for="eci">Nouvelle image (facultatif)</label><input id="eci" type="file" accept="image/*" onchange="pickEditCatImg(this)"></div><div id="ecip"></div></div>
-   <div class="row" style="margin:0"><button class="btn" onclick="saveCat('${c.id}')">Enregistrer</button><button class="btn ghost" onclick="editingCat=null;render(true)">Annuler</button></div></div>`
+   <div class="row" style="margin:0"><button class="btn" onclick="saveCat('${c.id}')">Enregistrer</button><button class="btn ghost" onclick="clearDrafts();editingCat=null;render(true)">Annuler</button></div></div>`
   :`<div class="row" style="align-items:center;margin-bottom:10px">${img}
    <div style="flex:1;min-width:120px"><b style="font-size:17px">${esc(c.name)}</b><br><span class="hint" style="margin:0">${dname?'Rayon : '+esc(dname):'Sans rayon'}</span></div>
    <button class="btn ghost" onclick="editCat('${c.id}')">✏️ Modifier</button><button class="btn ghost" onclick="delCategory('${c.id}')">Supprimer</button></div>`;
@@ -833,7 +859,7 @@ function subcatChips(catId){
  return subs.map(subChip).join('');
 }
 function subChip(s){
- if(editingSub===s.id)return `<span style="display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap"><input id="esn" value="${esc(s.name)}" style="width:180px;min-height:36px" onkeydown="if(event.key==='Enter')saveSub('${s.id}')"><button class="btn" style="padding:7px 12px" onclick="saveSub('${s.id}')">Enregistrer</button><button class="btn ghost" style="padding:7px 12px" onclick="editingSub=null;render(true)">Annuler</button></span>`;
+ if(editingSub===s.id)return `<span style="display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap"><input id="esn" value="${esc(s.name)}" style="width:180px;min-height:36px" onkeydown="if(event.key==='Enter')saveSub('${s.id}')"><button class="btn" style="padding:7px 12px" onclick="saveSub('${s.id}')">Enregistrer</button><button class="btn ghost" style="padding:7px 12px" onclick="clearDrafts();editingSub=null;render(true)">Annuler</button></span>`;
  return `<span class="pill" style="display:inline-flex;align-items:center;gap:8px;padding:5px 6px 5px 12px;font-size:14px">${esc(s.name)}<button onclick="editSub('${s.id}')" title="Modifier" aria-label="Modifier ${esc(s.name)}" style="all:unset;cursor:pointer;padding:0 4px">✏️</button><button onclick="delSubcategory('${s.id}')" title="Supprimer" aria-label="Supprimer ${esc(s.name)}" style="all:unset;cursor:pointer;padding:0 4px;color:var(--bad);font-weight:800">✕</button></span>`;
 }
 function deptOptions(){return departments.map(d=>`<option value="${d.id}">${esc(d.name)}</option>`).join('')}
@@ -861,7 +887,7 @@ async function addBrand(){
  const{data:b,error}=await sb.from('brands').insert({name}).select().single();
  if(error){toast(error.message);return}
  if(newBrandLogo){const url=await uploadSiteImage(newBrandLogo,`brand-${b.id}.${(newBrandLogo.name.split('.').pop()||'jpg').toLowerCase()}`);if(url)await sb.from('brands').update({logo_url:url}).eq('id',b.id);newBrandLogo=null}
- $('#newbrand').value='';toast('Marque ajoutée 🎉');await refreshCats()
+ $('#newbrand').value='';clearDrafts();toast('Marque ajoutée 🎉');await refreshCats()
 }
 async function renameBrand(id,name){
  name=name.trim();if(!name){toast('Le nom ne peut pas être vide');return}
@@ -874,7 +900,7 @@ async function renameBrand(id,name){
 async function setBrandLogo(id,inp){const f=inp.files[0];if(!f)return;const url=await uploadSiteImage(f,`brand-${id}.${(f.name.split('.').pop()||'jpg').toLowerCase()}`);if(url){await sb.from('brands').update({logo_url:url}).eq('id',id);await refreshCats()}}
 async function delBrand(id){if(confirm('Supprimer cette marque ?')){await sb.from('brands').delete().eq('id',id);await refreshCats()}}
 let editingBrand=null,editBrandLogo=null;
-function editBrand(id){editingBrand=editingBrand===id?null:id;editBrandLogo=null;render(true)}
+function editBrand(id){clearDrafts();editingBrand=editingBrand===id?null:id;editBrandLogo=null;render(true)}
 function pickEditBrandLogo(inp){editBrandLogo=inp.files[0]||null;const r=$('#eblp');if(!r)return;if(editBrandLogo){const rd=new FileReader();rd.onload=()=>r.innerHTML=`<img src="${rd.result}" alt="" style="height:80px;max-width:200px;object-fit:contain;border-radius:10px;background:var(--bg);padding:6px">`;rd.readAsDataURL(editBrandLogo)}}
 async function saveBrand(id){
  const b=brands.find(x=>x.id===id);if(!b)return;
@@ -887,7 +913,7 @@ async function saveBrand(id){
  const{error}=await sb.from('brands').update(patch).eq('id',id);
  if(error){toast(error.message);return}
  if(patch.name)await sb.from('products').update({brand:name}).eq('brand',b.name);
- editingBrand=null;editBrandLogo=null;toast('Marque mise à jour 🎉');await refreshCats();await refresh()
+ editingBrand=null;editBrandLogo=null;clearDrafts();toast('Marque mise à jour 🎉');await refreshCats();await refresh()
 }
 function brandEditCard(b){
  return `<div class="card" style="border:2px solid var(--acc)"><h2 style="margin-top:0">Modifier « ${esc(b.name)} »</h2>
@@ -895,7 +921,7 @@ function brandEditCard(b){
  <div><label for="ebl">Nouveau logo (facultatif)</label><input id="ebl" type="file" accept="image/*" onchange="pickEditBrandLogo(this)"></div></div>
  <div class="row" style="align-items:center"><div><label>Logo actuel</label>${b.logo_url?`<img src="${esc(b.logo_url)}" alt="" style="height:80px;max-width:200px;object-fit:contain;border-radius:10px;background:var(--bg);padding:6px">`:'<span class="hint">Aucun logo</span>'}</div><div><label>${b.logo_url?'Remplacé par':'Nouveau'}</label><div id="eblp"><span class="hint">—</span></div></div></div>
  ${b.logo_url?`<label style="display:flex;gap:8px;align-items:center;font-weight:400;margin:0 0 12px"><input type="checkbox" id="ebrm" style="width:auto;min-height:auto">Retirer le logo (la marque s'affichera avec son nom)</label>`:''}
- <div class="row"><button class="btn" onclick="saveBrand('${b.id}')">Enregistrer</button><button class="btn ghost" onclick="editingBrand=null;editBrandLogo=null;render(true)">Annuler</button></div></div>`;
+ <div class="row"><button class="btn" onclick="saveBrand('${b.id}')">Enregistrer</button><button class="btn ghost" onclick="clearDrafts();editingBrand=null;editBrandLogo=null;render(true)">Annuler</button></div></div>`;
 }
 function brandTab(){
  const eb=editingBrand?brands.find(x=>x.id===editingBrand):null;
@@ -924,7 +950,7 @@ async function resetPassword(id){
  if(!password||password.length<6){toast('Mot de passe : 6 caractères minimum');return}
  const{data,error}=await sb.functions.invoke('reset-password',{body:{userId:id,password}});
  if(error||data?.error){toast((data&&data.error)||error.message||'Erreur lors de la réinitialisation');return}
- el.value='';toast('Mot de passe mis à jour 🎉')
+ el.value='';clearDrafts();toast('Mot de passe mis à jour 🎉')
 }
 async function createUser(){
  const name=$('#nun').value.trim(),email=$('#nue').value.trim(),password=$('#nup').value,role=$('#nur').value;
@@ -933,7 +959,7 @@ async function createUser(){
  const{data,error}=await sb.functions.invoke('create-user',{body:{name,email,password,role}});
  if(error||data?.error){toast((data&&data.error)||error.message||'Erreur lors de la création');return}
  $('#nun').value='';$('#nue').value='';$('#nup').value='';
- toast('Compte créé 🎉');await render()
+ clearDrafts();toast('Compte créé 🎉');await render()
 }
 async function renameUser(id,name){await sb.from('profiles').update({name:name.trim()}).eq('id',id);if(id===me.id)me.name=name.trim();await render()}
 async function setRole(id,role){const{error}=await sb.from('profiles').update({role}).eq('id',id);if(error){toast(error.message);return}if(id===me.id)me.role=role;await render()}

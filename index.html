@@ -41,7 +41,11 @@ header{background:var(--card);position:sticky;top:0;z-index:10;box-shadow:0 1px 
 .ic button{all:unset;cursor:pointer;position:relative}
 .ic b{position:absolute;top:-8px;right:-10px;background:var(--pink);color:#fff;font:600 10px/16px Poppins;min-width:16px;text-align:center;border-radius:50%;padding:0 2px}
 .hero{position:relative;border-radius:0 0 40px 40px;overflow:hidden;background:var(--hero) url('hero-baby.jpg') right center/auto 100% no-repeat}
-.hero:before{content:"";position:absolute;inset:0;background:linear-gradient(90deg,var(--hero) 40%,rgba(248,246,247,.65) 62%,transparent 82%)}
+.hero:before{content:"";position:absolute;inset:0;background:linear-gradient(90deg,var(--hero) 40%,rgba(248,246,247,.65) 62%,transparent 82%);transition:opacity .45s ease}
+.hero .w{transition:opacity .45s ease,transform .45s ease}
+.hero:hover:before,.hero:active:before{opacity:.35}
+.hero:hover .w,.hero:active .w{opacity:.55;transform:translateY(8px)}
+@media(prefers-reduced-motion:reduce){.hero:before,.hero .w{transition:none}}
 .hero .w{position:relative;z-index:1;margin:0;padding:40px 20px;display:grid;gap:18px;max-width:560px}
 .hero h1{font-size:clamp(26px,5vw,38px);line-height:1.22;margin:12px 0 10px;position:relative}.hero h1 span{color:var(--pink)}
 .hero p{max-width:420px;color:var(--mute);margin:0 0 18px;position:relative}

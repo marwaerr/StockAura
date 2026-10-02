@@ -280,7 +280,7 @@ function cbPreview(){
  const V=parseList($('#pv').value),C=parseList($('#pc').value);
  const multi=V.length*C.length>1;
  const sq=$('#pqwrap');if(sq)sq.style.display=multi?'none':'';
- $('#cbx').innerHTML=multi?'<label>Code-barres et quantité de chaque déclinaison</label>'+V.flatMap(v=>C.map(c=>`<div class="scan"><span class="cl">${esc(v)} · ${esc(c)}</span><input class="cbn" id="cbn_${esc(v)}_${esc(c)}" data-v="${esc(v)}" data-c="${esc(c)}" placeholder="Code-barres (facultatif)"><input class="cbq" id="cbq_${esc(v)}_${esc(c)}" data-v="${esc(v)}" data-c="${esc(c)}" type="number" min="0" placeholder="Qté" style="width:90px;flex:none"></div>`)).join(''):'';
+ $('#cbx').innerHTML=multi?'<p class="hint" style="margin:8px 0 10px">Plusieurs tailles/couleurs : saisissez la quantité (et le code-barres si besoin) de chacune.</p>'+V.flatMap(v=>C.map(c=>`<div class="scan"><span class="cl">${esc(v)} · ${esc(c)}</span><input class="cbn" id="cbn_${esc(v)}_${esc(c)}" data-v="${esc(v)}" data-c="${esc(c)}" placeholder="Code-barres (facultatif)"><input class="cbq" id="cbq_${esc(v)}_${esc(c)}" data-v="${esc(v)}" data-c="${esc(c)}" type="number" min="0" placeholder="Qté" style="width:90px;flex:none"></div>`)).join(''):'';
 }
 function catOptions(sel){
  const groups=departments.map(d=>`<optgroup label="${esc(d.name)}">${categories.filter(c=>c.department_id===d.id).map(c=>`<option value="${esc(c.name)}" ${sel===c.name?'selected':''}>${esc(c.name)}</option>`).join('')}</optgroup>`).join('');
@@ -347,7 +347,6 @@ function productsView(){
  <div class="grid"><div><label for="pn">${t('name')} du produit</label><input id="pn"></div>
  <div><label for="pbrand">Marque</label>${brandOptions('pbrand')}${!brands.length?`<p class="hint" style="margin:4px 0 0">Ajoutez vos marques dans <a href="#" onclick="view='site';siteTab='brands';render();return false">Site → Marques</a>.</p>`:''}</div>
  <div><label for="pb">${t('barcode')}</label><input id="pb" placeholder="Si une seule déclinaison"></div>
- <div id="pqwrap"><label for="pq">Quantité en stock</label><input id="pq" type="number" min="0" placeholder="0"></div>
  <div><label for="pp">${t('price')} de vente (DH)</label><input id="pp" type="number" min="0" step="any"></div>
  ${ad?`<div><label for="pa">Prix d'achat (DH)</label><input id="pa" type="number" min="0" step="any"></div>`:''}</div>
  <div class="grid"><div><label for="pdept">Rayon</label><select id="pdept" onchange="onDeptChange()">${deptSelectOptions()}</select></div><div><label for="pcat">${t('category')}</label><div id="catwrap2">${catOptionsForDept('','')}</div></div></div>
@@ -355,7 +354,9 @@ function productsView(){
  ${!departments.length?`<p class="hint">Créez d'abord un rayon dans <a href="#" onclick="view='site';siteTab='departments';render();return false">Site → Rayons</a>.</p>`:!categories.length?`<p class="hint">Aucune catégorie créée pour l'instant — ajoutez-en dans <a href="#" onclick="view='site';siteTab='categories';render();return false">Site → Catégories</a>.</p>`:''}
  <div class="grid"><div><label for="pv">Tailles / variantes</label><input id="pv" placeholder="S, M, L" oninput="cbPreview()"></div>
  <div><label for="pc">Couleurs</label><input id="pc" placeholder="Noir, Rose, Bleu" oninput="cbPreview()"></div></div>
- <div id="cbx"></div>
+ <div class="stockbox"><b>📦 Stock</b>
+ <div id="pqwrap" style="margin-top:8px"><label for="pq">Quantité en stock</label><input id="pq" type="number" min="0" placeholder="0" style="max-width:200px"></div>
+ <div id="cbx"></div></div>
  <label for="pdesc">Description (facultatif)</label><textarea id="pdesc" rows="3" style="width:100%;font:inherit;border:1px solid var(--line);border-radius:8px;padding:9px 11px;margin-bottom:12px"></textarea>
  <div class="grid"><div><label for="pphoto">${t('photo')} principale (facultatif)</label><input id="pphoto" type="file" accept="image/*" onchange="pickPhotoFile(this)"></div><div><label for="pth">Seuil stock faible</label><input id="pth" type="number" min="0" placeholder="${LOW}"></div></div>
  <div id="pphp" style="margin-bottom:10px"></div>

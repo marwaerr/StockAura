@@ -194,10 +194,70 @@ async function home(){
  <h2>Derniers mouvements</h2>${moveTable(recent||[])}`;
 }
 const MLBL={in:'Entrée',out:'Vente',return:'Retour'};
+let editingMove=null;
 function moveTable(a,withReceipt){
  if(!a.length)return '<div class="panel empty">Aucun mouvement pour le moment.</div>';
- const showAmt=isAdmin();
- return `<div class="panel scroll"><table><tr><th>Date</th><th>Type</th><th>Produit</th><th class="n">Qté</th>${showAmt?'<th class="n">Montant</th>':''}${withReceipt?'<th class="n"></th>':''}</tr>${a.map(x=>{const p=prodOf(x.variants?.product_id)||prodOf(x.variant_id);return `<tr><td>${fd(x.date)}</td><td>${MLBL[x.type]||x.type}</td><td>${esc(p?.p?.name||'(supprimé)')} · ${esc(x.variants?.variant||'')} · ${esc(x.variants?.color||'')}</td><td class="n ${x.type==='out'?'out':'in'}">${x.type==='out'?'-':'+'}${x.qty}</td>${showAmt?`<td class="n">${dh(x.qty*x.unit_price)}</td>`:''}${withReceipt?`<td class="n">${x.type==='out'&&x.sale_id?`<button class="btn ghost" onclick="viewReceipt('${x.sale_id}')">Reçu</button>`:''}</td>`:''}</tr>`}).join('')}</table></div>`;
+ const showAmt=isAdmin(),acts=withReceipt;
+ return `<div class="panel scroll"><table><tr><th>Date</th><th>Type</th><th>Produit</th><th class="n">Qté</th>${showAmt?'<th class="n">Montant</th>':''}${acts?'<th class="n"></th>':''}</tr>${a.map(x=>{
+  const p=prodOf(x.variants?.product_id)||prodOf(x.variant_id),pname=`${esc(p?.p?.name||'(supprimé)')} · ${esc(x.variants?.variant||'')} · ${esc(x.variants?.color||'')}`;
+  if(acts&&editingMove===x.id)return `<tr style="background:var(--bg)"><td><input id="emd" type="date" value="${x.date}" style="min-width:140px"></td><td>${MLBL[x.type]||x.type}</td><td>${pname}</td><td class="n"><input id="emq" type="number" min="1" value="${x.qty}" style="width:80px"></td>${showAmt?`<td class="n"><input id="emp" type="number" min="0" step="any" value="${x.unit_price}" style="width:100px" title="Prix unitaire"></td>`:''}<td class="n"><button class="btn" onclick="saveMove('${x.id}')">Enregistrer</button> <button class="btn ghost" onclick="clearDrafts();editingMove=null;render()">Annuler</button></td></tr>`;
+  let btns='';
+  if(acts){
+   if(x.type==='out'&&x.sale_id)btns=`<button class="btn ghost" onclick="viewReceipt('${x.sale_id}')">Reçu</button>${isAdmin()?` <button class="btn ghost" style="color:var(--bad)" onclick="cancelSale('${x.sale_id}')">Annuler la vente</button>`:''}`;
+   else if(isAdmin()&&!(x.ref||'').startsWith('Commande site'))btns=`${x.type!=='out'?`<button class="btn ghost" onclick="editMove('${x.id}')">✏️ Modifier</button> `:''}<button class="btn ghost" style="color:var(--bad)" onclick="delMove('${x.id}')">Supprimer</button>`;
+   else if((x.ref||'').startsWith('Commande site'))btns='<span class="hint" style="margin:0">Commande du site</span>';
+  }
+  return `<tr><td>${fd(x.date)}</td><td>${MLBL[x.type]||x.type}${x.ref&&x.type==='in'?`<br><span class="hint" style="margin:0;font-size:12px">${esc(x.ref)}</span>`:''}</td><td>${pname}</td><td class="n ${x.type==='out'?'out':'in'}">${x.type==='out'?'-':'+'}${x.qty}</td>${showAmt?`<td class="n">${dh(x.qty*x.unit_price)}</td>`:''}${acts?`<td class="n">${btns}</td>`:''}</tr>`}).join('')}</table></div>`;
+}
+/* ---- Correction des opérations (administrateur) ---- */
+async function adjustStock(vid,delta){
+ const{data,error}=await sb.from('variants').select('quantity').eq('id',vid).single();
+ if(error||!data){toast('Déclinaison introuvable');return false}
+ const nq=(data.quantity||0)+delta;
+ if(nq<0){toast('Impossible : le stock deviendrait négatif (une partie a déjà été vendue)');return false}
+ const{error:e2}=await sb.from('variants').update({quantity:nq}).eq('id',vid);
+ if(e2){toast(e2.message);return false}
+ const pv=prodOf(vid);if(pv)pv.v.quantity=nq;
+ return true;
+}
+function editMove(id){clearDrafts();editingMove=editingMove===id?null:id;render()}
+async function saveMove(id){
+ const{data:m}=await sb.from('moves').select('*').eq('id',id).single();
+ if(!m){toast('Opération introuvable');return}
+ const q=parseInt($('#emq').value),d=$('#emd').value||m.date,pr=$('#emp')?parseFloat($('#emp').value):m.unit_price;
+ if(!(q>0)||isNaN(pr)){toast('Quantité et prix requis');return}
+ const delta=q-m.qty; // entrée ou retour : le stock suit la quantité
+ if(delta&&!(await adjustStock(m.variant_id,delta)))return;
+ const{error}=await sb.from('moves').update({qty:q,unit_price:pr,date:d}).eq('id',id);
+ if(error){if(delta)await adjustStock(m.variant_id,-delta);toast(error.message);return}
+ editingMove=null;clearDrafts();toast('Opération modifiée 🎉');await refresh()
+}
+async function delMove(id){
+ const{data:m}=await sb.from('moves').select('*').eq('id',id).single();
+ if(!m){toast('Opération introuvable');return}
+ if(m.type==='out'&&m.sale_id)return cancelSale(m.sale_id);
+ if(!confirm(`Supprimer cette ${MLBL[m.type]?.toLowerCase()||'opération'} de ${m.qty} article(s) ? Le stock sera corrigé.`))return;
+ const delta=m.type==='out'?m.qty:-m.qty;
+ if(!(await adjustStock(m.variant_id,delta)))return;
+ const{error}=await sb.from('moves').delete().eq('id',id);
+ if(error){await adjustStock(m.variant_id,-delta);toast(error.message);return}
+ toast('Opération supprimée, stock corrigé');await refresh()
+}
+async function cancelSale(saleId){
+ if(!confirm('Annuler cette vente ? Tous ses articles reviennent en stock et elle disparaît du chiffre d\'affaires et de la caisse.'))return;
+ const{data:items}=await sb.from('moves').select('*').eq('sale_id',saleId);
+ for(const it of items||[]){if(it.type==='out')await adjustStock(it.variant_id,it.qty)}
+ const{error}=await sb.from('moves').delete().eq('sale_id',saleId);
+ if(error){toast(error.message);return}
+ await sb.from('sales').delete().eq('id',saleId);
+ if(lastReceipt&&lastReceipt.id===saleId)lastReceipt=null;
+ toast('Vente annulée, stock remis à jour');await refresh()
+}
+async function delCashMove(id){
+ if(!confirm('Supprimer ce mouvement de caisse ?'))return;
+ const{error}=await sb.from('cash_moves').delete().eq('id',id);
+ if(error){toast(error.message);return}
+ toast('Mouvement de caisse supprimé');await render()
 }
 async function viewReceipt(saleId){
  const[{data:saleRow},{data:items}]=await Promise.all([
@@ -217,7 +277,9 @@ const th=p=>p.photo_url?`<img class="th" src="${esc(p.photo_url)}" alt="${esc(p.
 const parseList=s=>{const a=(s||'').split(',').map(x=>x.trim()).filter(Boolean);return a.length?a:['Standard']};
 function cbPreview(){
  const V=parseList($('#pv').value),C=parseList($('#pc').value);
- $('#cbx').innerHTML=V.length*C.length>1?'<label>Code-barres de chaque déclinaison (facultatif)</label>'+V.flatMap(v=>C.map(c=>`<div class="scan"><span class="cl">${esc(v)} · ${esc(c)}</span><input class="cbn" id="cbn_${esc(v)}_${esc(c)}" data-v="${esc(v)}" data-c="${esc(c)}" placeholder="Scanner ou saisir"></div>`)).join(''):'';
+ const multi=V.length*C.length>1;
+ const sq=$('#pqwrap');if(sq)sq.style.display=multi?'none':'';
+ $('#cbx').innerHTML=multi?'<label>Code-barres et quantité de chaque déclinaison</label>'+V.flatMap(v=>C.map(c=>`<div class="scan"><span class="cl">${esc(v)} · ${esc(c)}</span><input class="cbn" id="cbn_${esc(v)}_${esc(c)}" data-v="${esc(v)}" data-c="${esc(c)}" placeholder="Code-barres (facultatif)"><input class="cbq" id="cbq_${esc(v)}_${esc(c)}" data-v="${esc(v)}" data-c="${esc(c)}" type="number" min="0" placeholder="Qté" style="width:90px;flex:none"></div>`)).join(''):'';
 }
 function catOptions(sel){
  const groups=departments.map(d=>`<optgroup label="${esc(d.name)}">${categories.filter(c=>c.department_id===d.id).map(c=>`<option value="${esc(c.name)}" ${sel===c.name?'selected':''}>${esc(c.name)}</option>`).join('')}</optgroup>`).join('');
@@ -284,6 +346,7 @@ function productsView(){
  <div class="grid"><div><label for="pn">${t('name')} du produit</label><input id="pn"></div>
  <div><label for="pbrand">Marque</label>${brandOptions('pbrand')}${!brands.length?`<p class="hint" style="margin:4px 0 0">Ajoutez vos marques dans <a href="#" onclick="view='site';siteTab='brands';render();return false">Site → Marques</a>.</p>`:''}</div>
  <div><label for="pb">${t('barcode')}</label><input id="pb" placeholder="Si une seule déclinaison"></div>
+ <div id="pqwrap"><label for="pq">Quantité en stock</label><input id="pq" type="number" min="0" placeholder="0"></div>
  <div><label for="pp">${t('price')} de vente (DH)</label><input id="pp" type="number" min="0" step="any"></div>
  ${ad?`<div><label for="pa">Prix d'achat (DH)</label><input id="pa" type="number" min="0" step="any"></div>`:''}</div>
  <div class="grid"><div><label for="pdept">Rayon</label><select id="pdept" onchange="onDeptChange()">${deptSelectOptions()}</select></div><div><label for="pcat">${t('category')}</label><div id="catwrap2">${catOptionsForDept('','')}</div></div></div>
@@ -316,6 +379,8 @@ function editForm(id){
  <div class="grid"><div><label for="eprice">Prix de vente (DH)</label><input id="eprice" type="number" min="0" step="any" value="${p.price}"></div>${isAdmin()?`<div><label for="ecost">Prix d'achat (DH)</label><input id="ecost" type="number" min="0" step="any" value="${p.cost||0}"></div>`:''}</div>
  <div class="grid"><div><label for="ecat">Catégorie</label><select id="ecat" onchange="onEditCatChange()">${departments.map(d=>`<optgroup label="${esc(d.name)}">${categories.filter(c=>c.department_id===d.id).map(c=>`<option value="${esc(c.name)}" ${p.category===c.name?'selected':''}>${esc(c.name)}</option>`).join('')}</optgroup>`).join('')}${categories.filter(c=>!c.department_id).map(c=>`<option value="${esc(c.name)}" ${p.category===c.name?'selected':''}>${esc(c.name)}</option>`).join('')}</select></div><div><label for="esub">Sous-catégorie</label><div id="esubwrap">${editSubOptions(p.category,p.subcategory)}</div></div></div>
  <label for="edesc">Description</label><textarea id="edesc" rows="3" style="width:100%;font:inherit;border:1px solid var(--line);border-radius:8px;padding:9px 11px;margin-bottom:12px">${esc(p.description||'')}</textarea>
+ <h3 style="margin:6px 0 8px">Stock par déclinaison</h3><p class="hint" style="margin:0 0 10px">Corrigez ici la quantité réelle (inventaire). Pour un réapprovisionnement avec fournisseur, utilisez plutôt Entrées.</p>
+ <div class="grid">${p.variants.map(v=>`<div><label for="evq_${v.id}">${esc(v.variant)}${v.color&&v.color!=='Standard'?' · '+esc(v.color):''}</label><input id="evq_${v.id}" type="number" min="0" value="${v.quantity??0}"></div>`).join('')}</div>
  <div class="grid"><div><label for="ethresh">Seuil stock faible</label><input id="ethresh" type="number" min="0" value="${p.low_threshold||''}"></div><div><label for="ephoto">Photo principale (remplacer, facultatif)</label><input id="ephoto" type="file" accept="image/*"></div></div>
  <label style="display:flex;gap:8px;align-items:center;font-weight:400;margin:10px 0"><input type="checkbox" id="evis" ${p.visible?'checked':''} style="width:auto">Afficher sur le site</label>
  <label style="display:flex;gap:8px;align-items:center;font-weight:400;margin:0 0 10px"><input type="checkbox" id="enew" ${p.is_new?'checked':''} style="width:auto">Nouveauté</label>
@@ -361,6 +426,12 @@ async function saveEdit(id){
  if(error){toast(error.message);return}
  const f=$('#ephoto').files[0];
  if(f){const url=await uploadPhoto(f,id);if(url)await sb.from('products').update({photo_url:url}).eq('id',id)}
+ const prod=products.find(x=>x.id===id);
+ for(const v of prod?.variants||[]){
+  const el=document.getElementById('evq_'+v.id);if(!el||el.value==='')continue;
+  const nq=Math.max(0,parseInt(el.value)||0);
+  if(nq!==v.quantity){const{error:eq}=await sb.from('variants').update({quantity:nq}).eq('id',v.id);if(eq){toast('Stock non mis à jour : '+eq.message);return}}
+ }
  editingId=null;clearDrafts();toast('Produit mis à jour 🎉');await refresh()
 }
 async function uploadGalleryPhoto(file,productId){
@@ -390,10 +461,16 @@ async function addProduct(){
  const rows=[];
  for(const v of V)for(const c of C){
   const cbInput=[...document.querySelectorAll('.cbn')].find(i=>i.dataset.v===v&&i.dataset.c===c);
-  rows.push({product_id:p.id,variant:v,color:c,barcode:(single?bc:(cbInput?cbInput.value.trim():''))||null});
+  const qInput=[...document.querySelectorAll('.cbq')].find(i=>i.dataset.v===v&&i.dataset.c===c);
+  rows.push({product_id:p.id,variant:v,color:c,barcode:(single?bc:(cbInput?cbInput.value.trim():''))||null,_q:parseInt(single?$('#pq').value:(qInput?qInput.value:''))||0});
  }
- const{error:e2}=await sb.from('variants').insert(rows);
+ const qtys=rows.map(r=>r._q);rows.forEach(r=>delete r._q);
+ const{data:vrows,error:e2}=await sb.from('variants').insert(rows).select();
  if(e2){toast('Produit créé mais erreur sur les déclinaisons : '+e2.message);return}
+ for(let i=0;i<(vrows||[]).length;i++){
+  const q=qtys[rows.findIndex(r=>r.variant===vrows[i].variant&&r.color===vrows[i].color)]||0;
+  if(q>0){const{error:e3}=await sb.rpc('record_move',{p_variant_id:vrows[i].id,p_type:'in',p_qty:q,p_unit_price:price,p_ref:'Stock initial',p_supplier:null,p_payment:null,p_by:me.id});if(e3)toast('Stock initial non enregistré : '+e3.message)}
+ }
  clearDrafts();toast('Produit ajouté 🎉');await refresh()
 }
 async function toggleVisible(id,cur){
@@ -554,13 +631,13 @@ async function cash(){
  const{data:cm2}=await sb.from('cash_moves').select('*').order('date',{ascending:false}).limit(30);
  const{data:mv}=await sb.from('moves').select('*, variants(variant,color,product_id)').eq('payment','cash').in('type',['out','return']).order('date',{ascending:false}).limit(30);
  let bal=0;(mv||[]).forEach(x=>bal+=(x.type==='out'?1:-1)*x.qty*x.unit_price);(cm2||[]).forEach(m=>bal+=m.type==='in'?m.amount:-m.amount);bal=round2(bal);
- const list=[...(mv||[]).map(x=>({date:x.date,label:(x.type==='out'?'Vente':'Retour')+' — '+(prodOf(x.variant_id)?.p.name||''),amount:(x.type==='out'?1:-1)*x.qty*x.unit_price})),...(cm2||[]).map(m=>({date:m.date,label:(m.type==='in'?'Cash in':'Cash out')+(m.note?' — '+m.note:''),amount:m.type==='in'?m.amount:-m.amount}))].sort((a,b)=>a.date<b.date?1:-1).slice(0,20);
+ const list=[...(mv||[]).map(x=>({date:x.date,label:(x.type==='out'?'Vente':'Retour')+' — '+(prodOf(x.variant_id)?.p.name||''),amount:(x.type==='out'?1:-1)*x.qty*x.unit_price})),...(cm2||[]).map(m=>({id:m.id,date:m.date,label:(m.type==='in'?'Cash in':'Cash out')+(m.note?' — '+m.note:''),amount:m.type==='in'?m.amount:-m.amount}))].sort((a,b)=>a.date<b.date?1:-1).slice(0,20);
  return `<h1>Caisse</h1><p class="sub">Suivi du cash physique disponible.</p>
  <div class="ovp"><h2>Solde actuel</h2><div class="ov"><div class="oc" data-t="c"><span class="ic">${ic('wallet')}</span><div><b>${dh(bal)}</b><span>En caisse</span></div></div></div></div>
  <div class="card"><h2 style="margin-top:0">Cash in / Cash out</h2><p class="hint" style="margin:0 0 12px">N'affecte ni le chiffre d'affaires ni le profit.</p>
  <div class="grid"><div><label>Montant (DH)</label><input type="number" min="0" step="any" value="${cm.amount}" oninput="cm.amount=this.value"></div><div><label>Motif</label><input value="${esc(cm.note||'')}" oninput="cm.note=this.value"></div></div>
  <div class="row"><button class="btn" onclick="cashMove('in')">➕ Cash in</button><button class="btn ghost" onclick="cashMove('out')">➖ Cash out</button></div></div>
- <h2>Mouvements récents</h2>${list.length?`<div class="panel scroll"><table><tr><th>Date</th><th>Détail</th><th class="n">Montant</th></tr>${list.map(x=>`<tr><td>${fd(x.date)}</td><td>${esc(x.label)}</td><td class="n ${x.amount<0?'out':'in'}">${x.amount<0?'-':'+'}${dh(Math.abs(x.amount))}</td></tr>`).join('')}</table></div>`:'<div class="panel empty">Aucun mouvement.</div>'}`;
+ <h2>Mouvements récents</h2>${list.length?`<div class="panel scroll"><table><tr><th>Date</th><th>Détail</th><th class="n">Montant</th>${isAdmin()?'<th class="n"></th>':''}</tr>${list.map(x=>`<tr><td>${fd(x.date)}</td><td>${esc(x.label)}</td><td class="n ${x.amount<0?'out':'in'}">${x.amount<0?'-':'+'}${dh(Math.abs(x.amount))}</td>${isAdmin()?`<td class="n">${x.id?`<button class="btn ghost" style="color:var(--bad)" onclick="delCashMove('${x.id}')">Supprimer</button>`:'<span class="hint" style="margin:0;font-size:12px">via Historique</span>'}</td>`:''}</tr>`).join('')}</table></div>`:'<div class="panel empty">Aucun mouvement.</div>'}`;
 }
 async function cashMove(type){const amt=parseFloat(cm.amount);if(!(amt>0)){toast('Indiquez un montant');return}
  const{error}=await sb.from('cash_moves').insert({type,amount:round2(amt),note:(cm.note||'').trim(),by:me.id});

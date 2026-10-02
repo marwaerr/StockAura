@@ -189,3 +189,9 @@ nav .logo,nav .me{margin-left:-12px}
 .modal-x:hover{background:var(--line)}
 body.modal-open{overflow:hidden}
 #toast{z-index:40}
+
+/* ---------- Bloc stock dans le formulaire produit ---------- */
+.stockbox{background:var(--bg);border:1.5px dashed var(--soft);border-radius:12px;padding:14px 16px;margin:0 0 14px}
+.stockbox>b{font-size:15px}
+.stockbox .scan{margin-bottom:8px}
+.stockbox input{background:var(--card)}

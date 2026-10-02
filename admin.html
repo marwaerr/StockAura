@@ -303,7 +303,7 @@ function productsView(){
  <div class="row" style="margin:0"><button class="btn" onclick="addProduct()">${t('add')} le produit</button><button class="btn ghost" onclick="cancelAddProduct()">Annuler</button></div></div>
  ${bulkTable()}`:''}
  <div class="row"><input type="search" placeholder="${t('search')} (nom, catégorie, marque, code-barres)" value="${esc(prodQ)}" oninput="prodQ=this.value;go('products')"></div>
- ${c.length?`<div class="panel scroll"><table><tr><th></th><th>${t('product')}</th><th>Marque</th><th>${t('category')}</th><th>Taille</th><th>Couleur</th><th>${t('barcode')}</th><th class="n">${t('stock')}</th>${ad?'<th class="n">Achat</th>':''}<th class="n">${t('price')}</th>${ed?'<th class="n">Nouveau</th><th class="n">Promo</th><th class="n">Site</th><th class="n"></th>':''}</tr>${c.map(x=>{const first=!seen.has(x.p.id);seen.add(x.p.id);return `<tr><td>${th(x.p)}</td><td><b>${esc(x.p.name)}</b></td><td>${esc(x.p.brand||'—')}</td><td>${esc(x.p.category||'—')}${x.p.subcategory?' : '+esc(x.p.subcategory):''}</td><td>${esc(x.v.variant)}</td><td>${esc(x.v.color)}</td><td>${esc(x.v.barcode||'—')}</td><td class="n">${x.q<=(x.p.low_threshold||LOW)?`<span class="pill ${x.q<=0?'zero':''}">${x.q}</span>`:x.q}</td>${ad?`<td class="n">${dh(x.p.cost)}</td>`:''}<td class="n">${x.p.on_sale&&x.p.sale_price?`<s>${dh(x.p.price)}</s> ${dh(x.p.sale_price)}`:dh(x.p.price)}</td>${ed?`<td class="n"><button class="tgsw ${x.p.is_new?'on':''}" onclick="this.classList.toggle('on');toggleFlag('${x.p.id}','is_new',${!!x.p.is_new})"></button></td><td class="n"><button class="tgsw ${x.p.on_sale?'on':''}" onclick="this.classList.toggle('on');toggleFlag('${x.p.id}','on_sale',${!!x.p.on_sale})"></button></td><td class="n"><button class="tgsw ${x.p.visible?'on':''}" onclick="this.classList.toggle('on');toggleVisible('${x.p.id}',${x.p.visible})"></button></td><td class="n">${first?`<button class="btn ghost" onclick="editProduct('${x.p.id}')">Modifier</button>`:''}</td>`:''}</tr>`}).join('')}</table></div>`:'<div class="panel empty">Aucun produit trouvé.</div>'}
+ ${c.length?`<div class="panel scroll"><table><tr><th></th><th>${t('product')}</th><th>Marque</th><th>${t('category')}</th><th>Taille</th><th>Couleur</th><th>${t('barcode')}</th><th class="n">${t('stock')}</th>${ad?'<th class="n">Achat</th>':''}<th class="n">${t('price')}</th>${ed?'<th class="n">Nouveau</th><th class="n">Promo</th><th class="n">Site</th><th class="n"></th>':''}</tr>${c.map(x=>{const first=!seen.has(x.p.id);seen.add(x.p.id);return `<tr><td>${th(x.p)}</td><td><b>${esc(x.p.name)}</b></td><td>${esc(x.p.brand||'—')}</td><td>${esc(x.p.category||'—')}${x.p.subcategory?' : '+esc(x.p.subcategory):''}</td><td>${esc(x.v.variant)}</td><td>${esc(x.v.color)}</td><td>${esc(x.v.barcode||'—')}</td><td class="n">${x.q<=(x.p.low_threshold||LOW)?`<span class="pill ${x.q<=0?'zero':''}">${x.q}</span>`:x.q}</td>${ad?`<td class="n">${dh(x.p.cost)}</td>`:''}<td class="n">${x.p.on_sale&&x.p.sale_price?`<s>${dh(x.p.price)}</s> ${dh(x.p.sale_price)}`:dh(x.p.price)}</td>${ed?`<td class="n"><button class="tgsw ${x.p.is_new?'on':''}" onclick="this.classList.toggle('on');toggleFlag('${x.p.id}','is_new',${!!x.p.is_new})"></button></td><td class="n"><button class="tgsw ${x.p.on_sale?'on':''}" onclick="this.classList.toggle('on');toggleFlag('${x.p.id}','on_sale',${!!x.p.on_sale})"></button></td><td class="n"><button class="tgsw ${x.p.visible?'on':''}" onclick="this.classList.toggle('on');toggleVisible('${x.p.id}',${x.p.visible})"></button></td><td class="n">${first?`<button class="btn ghost" onclick="editProduct('${x.p.id}')">✏️ Modifier</button>${ad?` <button class="btn ghost" style="color:var(--bad)" onclick="delProduct('${x.p.id}')">Supprimer</button>`:''}`:''}</td>`:''}</tr>`}).join('')}</table></div>`:'<div class="panel empty">Aucun produit trouvé.</div>'}
  ${ed&&editingId?editForm(editingId):''}`;
 }
 function editProduct(id){clearDrafts();editingId=editingId===id?null:id;render(true)}
@@ -324,7 +324,32 @@ function editForm(id){
  <h3 style="margin:16px 0 8px">Galerie de photos (visible sur la fiche produit du site)</h3>
  <div class="row">${(p.product_images||[]).map(im=>`<span style="position:relative;display:inline-block"><img src="${esc(im.image_url)}" style="width:64px;height:64px;object-fit:cover;border-radius:8px"><a href="#" onclick="delProductImage('${im.id}','${id}');return false" style="position:absolute;top:-6px;right:-6px;background:var(--bad);color:#fff;border-radius:50%;width:18px;height:18px;display:grid;place-items:center;font-size:11px;text-decoration:none">✕</a></span>`).join('')||'<span class="hint">Aucune photo supplémentaire</span>'}</div>
  <div class="row" style="margin-top:10px"><input id="egallery" type="file" accept="image/*" multiple><button class="btn ghost" onclick="addGalleryImages('${id}')">Ajouter ces photos</button></div>
- <div class="row" style="margin-top:16px"><button class="btn" onclick="saveEdit('${id}')">Enregistrer les modifications</button><button class="btn ghost" onclick="clearDrafts();editingId=null;render(true)">Annuler</button></div></div>`;
+ <div class="row" style="margin-top:16px"><button class="btn" onclick="saveEdit('${id}')">Enregistrer les modifications</button><button class="btn ghost" onclick="clearDrafts();editingId=null;render(true)">Annuler</button>${isAdmin()?`<button class="btn ghost" style="color:var(--bad);margin-left:auto" onclick="delProduct('${id}')">🗑 Supprimer ce produit</button>`:''}</div></div>`;
+}
+async function delProduct(id){
+ const p=products.find(x=>x.id===id);if(!p)return;
+ if(!confirm(`Supprimer définitivement « ${p.name} » et toutes ses déclinaisons ?`))return;
+ const vids=p.variants.map(v=>v.id);
+ if(vids.length){
+  const[{count:c1},{count:c2}]=await Promise.all([
+   sb.from('moves').select('id',{count:'exact',head:true}).in('variant_id',vids),
+   sb.from('order_items').select('id',{count:'exact',head:true}).in('variant_id',vids)]);
+  if(c1||c2){
+   if(confirm(`« ${p.name} » a déjà un historique (entrées, ventes ou commandes du site). Le supprimer fausserait vos chiffres et vos reçus.\n\nVoulez-vous plutôt le masquer du site ? Il restera dans vos statistiques.`)){
+    const{error}=await sb.from('products').update({visible:false}).eq('id',id);
+    if(error){toast(error.message);return}
+    toast('Produit masqué du site');await refresh()
+   }
+   return
+  }
+ }
+ await sb.from('promotion_products').delete().eq('product_id',id);
+ await sb.from('product_images').delete().eq('product_id',id);
+ if(vids.length){const{error:ev}=await sb.from('variants').delete().in('id',vids);if(ev){toast('Suppression impossible : '+ev.message);return}}
+ const{error}=await sb.from('products').delete().eq('id',id);
+ if(error){toast('Suppression impossible : '+error.message);return}
+ if(editingId===id){editingId=null;clearDrafts()}
+ toast('Produit supprimé 🗑');await refresh()
 }
 async function saveEdit(id){
  const name=$('#ename').value.trim(),price=parseFloat($('#eprice').value);

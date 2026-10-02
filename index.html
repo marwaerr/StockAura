@@ -26,10 +26,17 @@ header{background:var(--card);position:sticky;top:0;z-index:10;box-shadow:0 1px 
 .brand span{font:700 22px/1 'Playfair Display',serif;color:var(--pink)}
 .gnav a{padding:6px 0;border-bottom:2px solid transparent}.gnav a:hover{color:var(--pink);border-color:var(--pink)}
 .hasmenu{position:relative;display:flex;align-items:center}
-.megamenu{display:none;position:absolute;top:100%;left:50%;transform:translateX(-50%);background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.12);padding:10px;min-width:200px;max-width:280px;z-index:20;flex-direction:column;gap:2px;max-height:320px;overflow-y:auto}
+.megamenu{display:none;position:absolute;top:100%;left:50%;transform:translateX(-50%);background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.12);padding:10px;min-width:200px;max-width:280px;z-index:20;flex-direction:column;gap:2px;}
 .hasmenu:hover .megamenu{display:flex}
 .megamenu a{display:block;padding:7px 10px;border-radius:8px;font-size:12.5px;white-space:nowrap;color:var(--ink)}
 .megamenu a:hover{background:var(--pink-s);color:var(--pink)}
+.megamenu a,.megamenu a:hover{border-bottom:0!important}
+.mcat{position:relative}
+.mcat>a{display:flex!important;justify-content:space-between;gap:14px}
+.mcat>a i{font-style:normal;color:var(--mute)}
+.submenu{display:none;position:absolute;left:100%;top:-10px;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.12);padding:10px;min-width:180px;flex-direction:column;gap:2px;z-index:21}
+.mcat:hover .submenu{display:flex}
+.mcat:hover>a{background:var(--pink-s);color:var(--pink)}
 .ic button{all:unset;cursor:pointer;position:relative}
 .ic b{position:absolute;top:-8px;right:-10px;background:var(--pink);color:#fff;font:600 10px/16px Poppins;min-width:16px;text-align:center;border-radius:50%;padding:0 2px}
 .hero{position:relative;border-radius:0 0 40px 40px;overflow:hidden;background:var(--hero) url('hero-baby.jpg') right center/auto 100% no-repeat}
@@ -246,8 +253,8 @@ footer .fc a,footer .fc span{display:flex;gap:6px;align-items:flex-start}
 <div class="findus"><div class="map"><iframe src="https://www.google.com/maps?q=24%20Av.%20Chakib%20Arsalane%2C%20Kenitra&amp;output=embed" loading="lazy" referrerpolicy="no-referrer-when-downgrade" title="Ola Bébé sur Google Maps"></iframe></div>
 <div class="findinfo"><h3>Ola Bébé</h3>
 <p>📍 24 Av. Chakib Arsalane, Kenitra</p>
-<p>📞 <a href="tel:+212660704987">06 60 70 49 87</a></p>
-<div class="acts"><a class="btn" href="https://www.google.com/maps/search/?api=1&amp;query=24%20Av.%20Chakib%20Arsalane%2C%20Kenitra" target="_blank" rel="noopener">Itinéraire →</a><a class="btn wa-b" href="https://wa.me/212660704987" target="_blank" rel="noopener">WhatsApp</a></div></div></div>
+<p>📞 <a data-tel href="tel:+212660704987">06 60 70 49 87</a></p>
+<div class="acts"><a class="btn" href="https://www.google.com/maps/search/?api=1&amp;query=24%20Av.%20Chakib%20Arsalane%2C%20Kenitra" target="_blank" rel="noopener">Itinéraire →</a><a class="btn wa-b" data-wa href="https://wa.me/212660704987" target="_blank" rel="noopener">WhatsApp</a></div></div></div>
 </div></section>
 <div class="w"><div class="nl"><div class="ml">✉</div><div class="tx"><h3>Une question sur un produit ?</h3><p>Ajoutez-le au panier et laissez-nous vos coordonnées, on vous recontacte.</p></div>
 <button class="btn" onclick="openCart()">Voir mon panier</button></div></div>
@@ -255,13 +262,13 @@ footer .fc a,footer .fc span{display:flex;gap:6px;align-items:flex-start}
 <div><a class="brand" href="#"><img src="logo.png" alt="Ola Bébé"></a><p>Tout pour bébé et maman.</p></div>
 <div><h4>Informations</h4><a href="#prods">Nos produits</a><a href="#cats">Catégories</a><a href="#reviews">Avis</a></div>
 <div><h4>Commencez vos achats</h4><a href="#new">Nouveautés</a><a href="#promo">Promotions</a><div id="footcats"></div></div>
-<div class="fc"><h4>Contact</h4><span>📍 24 Av. Chakib Arsalane, Kenitra</span><a href="tel:+212660704987">📞 06 60 70 49 87</a><a href="https://wa.me/212660704987" target="_blank" rel="noopener">💬 WhatsApp</a><span>✉ contact@olabebe.ma</span></div></div>
+<div class="fc"><h4>Contact</h4><span>📍 24 Av. Chakib Arsalane, Kenitra</span><a data-tel data-pre="📞 " href="tel:+212660704987">📞 06 60 70 49 87</a><a data-wa href="https://wa.me/212660704987" target="_blank" rel="noopener">💬 WhatsApp</a><span>✉ contact@olabebe.ma</span></div></div>
 <div class="cp">© 2026 Ola Bébé. Tous droits réservés.</div></div></footer>
 <div class="overlay" id="ov" onclick="closeCart()"></div>
 <div class="pmodal" id="pmodal" onclick="if(event.target===this)closeProduct()"></div>
 <div class="cartdrawer" id="drawer"></div>
 <div id="toast" role="status"></div>
-<a class="wa" href="https://wa.me/212660704987?text=Bonjour%20Ola%20B%C3%A9b%C3%A9%20!" target="_blank" rel="noopener" aria-label="Discuter avec nous sur WhatsApp" title="Discuter sur WhatsApp"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.2a8.8 8.8 0 0 0-7.6 13.2L3.2 20.8l4.5-1.2A8.8 8.8 0 1 0 12 3.2z" fill="none" stroke="#fff" stroke-width="1.7" stroke-linejoin="round"/><path d="M9.2 7.9c.2-.4.5-.5.8-.5h.5c.2 0 .4.1.5.4l.7 1.7c.1.2 0 .4-.1.6l-.5.6c-.1.1-.1.3 0 .5.6 1.1 1.5 2 2.6 2.6.2.1.4.1.5-.1l.6-.6c.2-.2.4-.2.6-.1l1.7.7c.2.1.4.3.4.5v.5c0 .3-.1.6-.5.9-.5.4-1.5.7-2.8.2-1.8-.7-3.5-2.4-4.3-4.2-.5-1.2-.3-2.3 0-2.7z" fill="#fff"/></svg></a>
+<a class="wa" data-wa data-msg="Bonjour Ola Bébé !" href="https://wa.me/212660704987?text=Bonjour%20Ola%20B%C3%A9b%C3%A9%20!" target="_blank" rel="noopener" aria-label="Discuter avec nous sur WhatsApp" title="Discuter sur WhatsApp"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.2a8.8 8.8 0 0 0-7.6 13.2L3.2 20.8l4.5-1.2A8.8 8.8 0 1 0 12 3.2z" fill="none" stroke="#fff" stroke-width="1.7" stroke-linejoin="round"/><path d="M9.2 7.9c.2-.4.5-.5.8-.5h.5c.2 0 .4.1.5.4l.7 1.7c.1.2 0 .4-.1.6l-.5.6c-.1.1-.1.3 0 .5.6 1.1 1.5 2 2.6 2.6.2.1.4.1.5-.1l.6-.6c.2-.2.4-.2.6-.1l1.7.7c.2.1.4.3.4.5v.5c0 .3-.1.6-.5.9-.5.4-1.5.7-2.8.2-1.8-.7-3.5-2.4-4.3-4.2-.5-1.2-.3-2.3 0-2.7z" fill="#fff"/></svg></a>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="supabase-config.js"></script>
 <script>
@@ -273,21 +280,37 @@ const LOW=5;
 const CAT_ICONS=['🧸','👶','🍼','🧴','👕','🎁','🛏️','🚼','🧦','📦'];
 const CAT_BG=['var(--pink-s)','var(--teal-s)','var(--yel)','var(--lav)'];
 const catIcon=name=>{let h=0;for(const c of (name||''))h=(h*31+c.charCodeAt(0))>>>0;return CAT_ICONS[h%CAT_ICONS.length]};
-let products=[],promos=[],reviews=[],cats=[],depts=[],brandRows=[],cart={},activeCat=null,activeBrand=null,activeDept=null,shipThreshold=null,activeSub=null,activePromoProducts=null;
+let subs=[],products=[],promos=[],reviews=[],cats=[],depts=[],brandRows=[],cart={},activeCat=null,activeBrand=null,activeDept=null,shipThreshold=null,activeSub=null,activePromoProducts=null;
+/* Numéro de téléphone (modifiable depuis l'admin : Site → Général) */
+const DEFAULT_PHONE='0660704987';
+function applyPhone(raw){
+ let d=String(raw||'').replace(/\D/g,'');
+ if(!d){try{d=localStorage.getItem('ola_phone')||''}catch(e){}}
+ if(!d)d=DEFAULT_PHONE;
+ try{localStorage.setItem('ola_phone',d)}catch(e){}
+ const intl=d.startsWith('212')?d:d.startsWith('0')?'212'+d.slice(1):d;
+ const local=intl.startsWith('212')?'0'+intl.slice(3):d;
+ const pretty=local.replace(/(\d{2})(?=\d)/g,'$1 ').trim();
+ document.querySelectorAll('[data-tel]').forEach(a=>{a.href='tel:+'+intl;a.textContent=(a.dataset.pre||'')+pretty});
+ document.querySelectorAll('[data-wa]').forEach(a=>{a.href='https://wa.me/'+intl+(a.dataset.msg?'?text='+encodeURIComponent(a.dataset.msg):'')});
+}
+try{const cp=localStorage.getItem('ola_phone');if(cp)applyPhone(cp)}catch(e){}
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2400)}
 
 async function boot(){
- const [{data:p,error:e1},{data:pr},{data:rv},{data:ct},{data:br},{data:dp},{data:ss}]=await Promise.all([
+ const [{data:p,error:e1},{data:pr},{data:rv},{data:ct},{data:br},{data:dp},{data:ss},{data:sc}]=await Promise.all([
   sb.from('products').select('id,name,price,photo_url,low_threshold,category,subcategory,brand,is_new,on_sale,sale_price,description,product_images(id,image_url),variants(id,variant,color,quantity)').eq('visible',true).order('created_at'),
   sb.from('promotions').select('*, promotion_products(product_id)').eq('active',true).order('sort'),
   sb.from('reviews').select('*').eq('approved',true).order('created_at',{ascending:false}).limit(12),
   sb.from('categories').select('*').order('sort').order('name'),
   sb.from('brands').select('*').order('name'),
   sb.from('departments').select('*').order('sort').order('name'),
-  sb.from('site_settings').select('*').in('key',['shipping_message','shipping_threshold','stats'])
+  sb.from('site_settings').select('*').in('key',['shipping_message','shipping_threshold','stats','phone']),
+  sb.from('subcategories').select('*').order('name')
  ]);
  if(e1)toast(e1.message);
- products=p||[];promos=pr||[];reviews=rv||[];cats=ct||[];brandRows=br||[];depts=dp||[];
+ products=p||[];promos=pr||[];reviews=rv||[];cats=ct||[];brandRows=br||[];depts=dp||[];subs=sc||[];
+ applyPhone(ss?.find(r=>r.key==='phone')?.value);
  const shipMsg=ss?.find(r=>r.key==='shipping_message')?.value||'';
  shipThreshold=parseFloat(ss?.find(r=>r.key==='shipping_threshold')?.value)||null;
  renderRibbon();renderNew();renderPromo();renderCats();renderBrands();renderGrid();renderReviews();renderMenu();renderShipBanner(shipMsg);
@@ -313,12 +336,17 @@ function categories(){return cats.length?cats.map(c=>c.name):[...new Set(product
 function deptOfCat(catName){const row=cats.find(c=>c.name===catName);if(!row||!row.department_id)return null;return depts.find(d=>d.id===row.department_id)?.name||null}
 function categoriesByDept(dname){const d=depts.find(x=>x.name===dname);if(!d)return[];return cats.filter(c=>c.department_id===d.id).map(c=>c.name)}
 function brands(){return brandRows.length?brandRows.map(b=>b.name):[...new Set(products.map(p=>p.brand).filter(Boolean))]}
+function subsOfCat(catName){const c=cats.find(x=>x.name===catName);return c?subs.filter(s=>s.category_id===c.id).map(s=>s.name):[]}
+function goCat(c){activeDept=null;activeCat=null;activePromoProducts=null;pickCat(c);renderMenu()}
+function goSub(c,sub){activeDept=null;activeBrand=null;activePromoProducts=null;activeCat=c;activeSub=sub;renderMenu();renderCats();renderBrands();renderGrid();document.getElementById('prods').scrollIntoView({behavior:'smooth'})}
+function goDept(d){activeDept=null;pickDept(d)}
 function pickCat(c){activeSub=null;activePromoProducts=null;activeCat=activeCat===c?null:c;renderCats();renderGrid();document.getElementById('prods').scrollIntoView({behavior:'smooth'})}
 function pickBrand(b){activePromoProducts=null;activeBrand=activeBrand===b?null:b;renderBrands();renderGrid();document.getElementById('prods').scrollIntoView({behavior:'smooth'})}
 function pickDept(dname){activeCat=null;activeDept=activeDept===dname?null:dname;renderMenu();renderCats();renderGrid();document.getElementById('cats').scrollIntoView({behavior:'smooth'})}
 function renderMenu(){
  const nav=$('#deptnav'),mn=$('#mnav');
- if(nav)nav.innerHTML=depts.map(d=>{const list=categoriesByDept(d.name);return `<div class="hasmenu"><a href="#" class="${activeDept===d.name?'on':''}" onclick="pickDept('${esc(d.name)}');return false">${esc(d.name)}${list.length?' ▾':''}</a>${list.length?`<div class="megamenu">${list.map(c=>`<a href="#" onclick="pickCat('${esc(c)}');return false">${esc(c)}</a>`).join('')}</div>`:''}</div>`}).join('');
+ if(nav)nav.innerHTML=depts.map(d=>{const list=categoriesByDept(d.name);return `<div class="hasmenu"><a href="#" class="${activeDept===d.name?'on':''}" onclick="pickDept('${esc(d.name)}');return false">${esc(d.name)}${list.length?' ▾':''}</a>${list.length?`<div class="megamenu">${list.map(c=>{const sl=subsOfCat(c);return `<div class="mcat"><a href="#" onclick="goCat('${esc(c)}');return false">${esc(c)}${sl.length?'<i>›</i>':''}</a>${sl.length?`<div class="submenu">${sl.map(x=>`<a href="#" onclick="goSub('${esc(c)}','${esc(x)}');return false">${esc(x)}</a>`).join('')}</div>`:''}</div>`}).join('')}</div>`:''}</div>`}).join('');
+ const fc=$('#footcats');if(fc)fc.innerHTML=depts.map(d=>`<a href="#cats" onclick="goDept('${esc(d.name)}');return false">${esc(d.name)}</a>`).join('');
  if(mn)mn.innerHTML=depts.map(d=>`<button class="${activeDept===d.name?'on':''}" onclick="pickDept('${esc(d.name)}')">${esc(d.name)}</button>`).join('')+'<a href="#new">Nouveautés</a><a href="#promo">Promo</a><a href="#brands">Marques</a>';
 }
 /* ---------- Chiffres clés ---------- */
@@ -339,7 +367,6 @@ function renderCats(){
  let list=categories();
  if(activeDept)list=list.filter(c=>deptOfCat(c)===activeDept);
  $('#catwrap').innerHTML=list.length?`<div class="cats">${list.map((c,i)=>{const row=cats.find(x=>x.name===c);return `<button class="cat ${activeCat===c?'on':''}" onclick="pickCat('${esc(c)}')"><div class="im" style="background:${row&&row.image_url?`center/cover url('${esc(row.image_url)}')`:CAT_BG[i%CAT_BG.length]}">${row&&row.image_url?'':catIcon(c)}<i>${catIcon(c)}</i></div><h3>${esc(c)}</h3></button>`}).join('')}</div>`:'<div class="panel empty">Les catégories apparaîtront ici dès que des produits en auront une.</div>';
- const fc=$('#footcats');if(fc)fc.innerHTML=categories().map(c=>`<a href="#cats" onclick="pickCat('${esc(c)}');return true">${esc(c)}</a>`).join('');
 }
 function renderBrands(){
  const b=brands();

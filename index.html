@@ -146,8 +146,9 @@ header{background:var(--card);position:sticky;top:0;z-index:10;box-shadow:0 1px 
 .tag,.tag2{transition:opacity .3s ease,transform .3s ease}
 .prod:hover .tag,.prod:hover .tag2,.prod:active .tag,.prod:active .tag2{opacity:.2;transform:translateY(4px)}
 .prod .im img{transition:transform .4s ease}
-.prod:hover .im img{transform:scale(1.04)}
-@media(prefers-reduced-motion:reduce){.tag,.tag2,.prod .im img{transition:none}}
+@keyframes imgPulse{0%{transform:scale(1)}45%{transform:scale(1.09)}100%{transform:scale(1)}}
+.prod:hover .im img{animation:imgPulse .75s ease}
+@media(prefers-reduced-motion:reduce){.tag,.tag2,.prod .im img{transition:none;animation:none!important}}
 .tag2{position:absolute;top:10px;right:10px;background:var(--yel);color:#7a5a00;font-size:10px;font-weight:700;padding:1px 9px;border-radius:99px;z-index:1}
 .prod button.add{margin-top:10px;border:1px solid var(--pink);background:transparent;color:var(--pink);border-radius:99px;padding:7px;font:600 12px Poppins;cursor:pointer;width:100%}
 .prod button.add:hover{background:var(--pink);color:#fff}
@@ -223,6 +224,62 @@ footer .fc a,footer .fc span{display:flex;gap:6px;align-items:flex-start}
 .pill{font-size:10px;padding:4px 10px}
 .hero .btn{padding:9px 14px;font-size:11px}
 .hero .btn.o{margin:8px 0 0}
+}
+
+/* ---------- Fiche produit (fenêtre) ---------- */
+.pmodal{background:rgba(35,22,32,.55);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
+.pmodal .pm-box{max-width:940px;grid-template-columns:1.05fr 1fr;grid-template-rows:minmax(0,1fr);border-radius:22px;max-height:92vh;box-shadow:0 30px 80px rgba(0,0,0,.3)}
+.pm-box.in{animation:pmIn .28s ease}
+@keyframes pmIn{from{opacity:0;transform:translateY(18px) scale(.97)}to{opacity:1;transform:none}}
+.pm-close{top:14px;right:14px}
+.pm-media{background:#fff;padding:20px;display:flex;flex-direction:column;gap:12px;border-right:1px solid var(--line);min-height:0;overflow-y:auto}
+.pmodal .pm-img{position:relative;aspect-ratio:1/1;min-height:0;background:var(--hero)!important;border-radius:16px;display:grid;place-items:center;overflow:hidden;flex:none}
+.pmodal .pm-img img{position:absolute;inset:16px;width:calc(100% - 32px);height:calc(100% - 32px);max-height:none;padding:0;object-fit:contain;animation:pmFade .3s ease}
+@keyframes pmFade{from{opacity:.3}to{opacity:1}}
+.pm-noimg{font-size:70px}
+.pm-badge{position:absolute;top:12px;left:12px;z-index:1;background:var(--pink);color:#fff;font-size:12px;font-weight:700;padding:4px 12px;border-radius:99px}
+.pm-badge.new{background:var(--teal)}
+.pm-nav{all:unset;position:absolute;top:50%;transform:translateY(-50%);z-index:1;width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.92);display:grid;place-items:center;cursor:pointer;box-shadow:0 3px 10px rgba(0,0,0,.15);font-size:22px;color:var(--ink)}
+.pm-nav:hover{color:var(--pink)}.pm-nav.prev{left:10px}.pm-nav.next{right:10px}
+.pmodal .pm-thumbs{position:static;display:flex;gap:8px;overflow-x:auto;padding-bottom:2px}
+.pmodal .pm-thumbs button{all:unset;cursor:pointer;flex:none;width:64px;height:64px;border-radius:10px;border:2px solid var(--line);background:#fff;overflow:hidden;opacity:.75}
+.pmodal .pm-thumbs button.on{border-color:var(--pink);opacity:1}
+.pmodal .pm-thumbs img{width:100%;height:100%;object-fit:contain}
+.pmodal .pm-info{padding:32px 30px 26px;display:flex;flex-direction:column;gap:12px;min-height:0;overflow-y:auto}
+.pm-crumbs{font-size:11.5px;color:var(--mute);padding-right:40px}.pm-crumbs span{margin:0 4px;opacity:.6}
+.pm-brand{align-self:flex-start;background:var(--teal-s);color:var(--teal);font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;padding:4px 11px;border-radius:99px}
+.pmodal .pm-info h2{font-size:clamp(20px,2.6vw,26px);line-height:1.25;margin:0}
+.pm-price{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.pm-price b{font:700 28px/1 Poppins,sans-serif;color:var(--pink)}.pm-price s{color:var(--mute);font-size:14px}
+.pm-save{background:var(--pink-s);color:var(--pink);font-size:11.5px;font-weight:700;padding:3px 10px;border-radius:99px}
+.pm-stock{align-self:flex-start;font-size:12px;font-weight:600;padding:4px 12px;border-radius:99px}
+.pm-stock.ok{background:#e7f6ec;color:#2f8a52}.pm-stock.low{background:#fff4dc;color:#a8730f}.pm-stock.out{background:#fdeaea;color:#b23b3b}
+.pm-opt span{display:block;font-size:12.5px;font-weight:600;margin-bottom:8px}
+.pm-chips{display:flex;flex-wrap:wrap;gap:8px}
+.pm-chips button{all:unset;cursor:pointer;border:1.5px solid var(--line);border-radius:10px;padding:8px 14px;font-size:12.5px;font-weight:500;transition:.15s}
+.pm-chips button:hover{border-color:var(--pink)}
+.pm-chips button.on{border-color:var(--pink);background:var(--pink-s);color:var(--pink);font-weight:600}
+.pm-chips button.off{opacity:.45;text-decoration:line-through}
+.pm-var{margin:0;font-size:13px;color:var(--mute)}
+.pmodal .pm-desc{color:var(--mute);font-size:13px;line-height:1.7;white-space:pre-line;border-top:1px solid var(--line);padding-top:12px;margin:0}
+.pm-buy{display:flex;gap:10px;align-items:stretch;margin-top:4px}
+.pmodal .pm-add{flex:1;margin:0;width:auto}
+.pmodal .pm-add:disabled{background:var(--line);color:var(--mute);box-shadow:none;cursor:not-allowed}
+.pm-qty{display:flex;align-items:center;border:1.5px solid var(--pink);border-radius:12px;overflow:hidden;flex:none}
+.pm-qty button{all:unset;cursor:pointer;width:42px;align-self:stretch;display:grid;place-items:center;font-size:18px;font-weight:700;color:var(--pink)}
+.pm-qty button:hover{background:var(--pink-s)}
+.pm-qty b{min-width:30px;text-align:center;font-size:15px}
+.pm-wa{font-size:12.5px;font-weight:600;color:#1f9d55;text-align:center;padding:4px}
+.pm-wa:hover{text-decoration:underline}
+.pm-perks{list-style:none;margin:2px 0 0;padding:12px 0 0;border-top:1px solid var(--line);display:grid;gap:6px;font-size:12px;color:var(--mute)}
+@media(max-width:700px){
+ .pmodal{padding:0;align-items:flex-end}
+ .pmodal .pm-box{grid-template-columns:1fr;grid-template-rows:auto;border-radius:22px 22px 0 0;max-height:94vh;overflow-y:auto}
+ .pm-box.in{animation:pmUp .3s ease}
+ @keyframes pmUp{from{transform:translateY(40px);opacity:.4}to{transform:none;opacity:1}}
+ .pm-media{border-right:0;padding:14px 14px 0;overflow:visible}
+ .pmodal .pm-img{aspect-ratio:4/3}
+ .pmodal .pm-info{overflow:visible;padding:16px 18px calc(22px + env(safe-area-inset-bottom,0px))}
 }
 </style>
 </head>
@@ -515,26 +572,46 @@ function openProduct(pid,vid){
  const p=products.find(x=>x.id===pid);if(!p)return;
  const v=p.variants.find(x=>x.id===vid)||p.variants[0];
  const imgs=[p.photo_url,...(p.product_images||[]).map(i=>i.image_url)].filter(Boolean);
- let active=0;
- const renderModal=()=>{
-  const inCart=cart[v.id]||0;
-  $('#pmodal').innerHTML=`<div class="pm-box">
-   <button class="pm-close" onclick="closeProduct()">✕</button>
-   <div class="pm-img">${imgs.length?`<img src="${esc(imgs[active])}" alt="${esc(p.name)}">`:'<div class="im" style="height:100%;font-size:60px">📦</div>'}</div>
-   ${imgs.length>1?`<div class="pm-thumbs">${imgs.map((im,i)=>`<button class="${i===active?'on':''}" onclick="event.stopPropagation();window._pmActive(${i})"><img src="${esc(im)}" alt=""></button>`).join('')}</div>`:''}
+ const m=$('#pmodal'),first=!m.classList.contains('open');
+ let active=!first&&window._pmState&&window._pmState.pid===pid?Math.min(window._pmState.active,Math.max(0,imgs.length-1)):0;
+ const vlabel=x=>[x.variant!=='Standard'?x.variant:'',x.color&&x.color!=='Standard'?x.color:''].filter(Boolean).join(' · ');
+ let anim=first;
+ const draw=()=>{
+  window._pmState={pid,active};
+  const inCart=cart[v.id]||0,price=p.on_sale&&p.sale_price?p.sale_price:p.price;
+  const pct=p.on_sale&&p.sale_price&&p.price>p.sale_price?Math.round((1-p.sale_price/p.price)*100):0;
+  const th=p.low_threshold||LOW,st=v.quantity<=0?['Rupture de stock','out']:v.quantity<=th?['Plus que '+v.quantity+' en stock','low']:['En stock','ok'];
+  const crumbs=[deptOfCat(p.category),p.category,p.subcategory].filter(Boolean);
+  m.innerHTML=`<div class="pm-box${anim?' in':''}" role="dialog" aria-modal="true" aria-label="${esc(p.name)}">
+   <button class="pm-close" onclick="closeProduct()" aria-label="Fermer">✕</button>
+   <div class="pm-media">
+    <div class="pm-img">${pct?`<span class="pm-badge">-${pct}%</span>`:p.is_new?'<span class="pm-badge new">Nouveau</span>':''}
+     ${imgs.length?`<img src="${esc(imgs[active])}" alt="${esc(p.name)}">`:'<span class="pm-noimg">📦</span>'}
+     ${imgs.length>1?`<button class="pm-nav prev" aria-label="Photo précédente" onclick="window._pmActive(${(active-1+imgs.length)%imgs.length})">‹</button><button class="pm-nav next" aria-label="Photo suivante" onclick="window._pmActive(${(active+1)%imgs.length})">›</button>`:''}
+    </div>
+    ${imgs.length>1?`<div class="pm-thumbs">${imgs.map((im,i)=>`<button class="${i===active?'on':''}" onclick="window._pmActive(${i})" aria-label="Photo ${i+1}"><img src="${esc(im)}" alt=""></button>`).join('')}</div>`:''}
+   </div>
    <div class="pm-info">
-    <span class="br">${esc(p.brand||p.category||'Ola Bébé')}</span>
-    <h2>${esc(p.name)}${v.variant!=='Standard'?' — '+esc(v.variant):''}${v.color&&v.color!=='Standard'?' '+esc(v.color):''}</h2>
-    <div style="margin:8px 0">${priceHTML(p)}${stBadge({p,v})}</div>
-    ${p.description?`<p class="pm-desc">${esc(p.description)}</p>`:''}
-    ${v.quantity<=0?'<p class="hint">Rupture de stock</p>':inCart?`<div class="stepper" style="max-width:220px;margin-top:6px"><button onclick="changeQty('${v.id}',-1);openProduct('${pid}','${vid}')">−</button><b>${inCart}</b><button onclick="changeQty('${v.id}',1);openProduct('${pid}','${vid}')">+</button></div>`:`<button class="add pm-add" onclick="addToCart('${v.id}');openProduct('${pid}','${vid}')">🛒 Ajouter au panier</button>`}
+    ${crumbs.length?`<div class="pm-crumbs">${crumbs.map(esc).join(' <span>›</span> ')}</div>`:''}
+    ${p.brand?`<span class="pm-brand">${esc(p.brand)}</span>`:''}
+    <h2>${esc(p.name)}</h2>
+    <div class="pm-price"><b>${dh(price)}</b>${pct?`<s>${dh(p.price)}</s><span class="pm-save">Économisez ${dh(p.price-price)}</span>`:''}</div>
+    <span class="pm-stock ${st[1]}">● ${st[0]}</span>
+    ${p.variants.length>1?`<div class="pm-opt"><span>Choisissez :</span><div class="pm-chips">${p.variants.map(x=>`<button class="${x.id===v.id?'on':''}${x.quantity<=0?' off':''}" onclick="openProduct('${pid}','${x.id}')">${esc(vlabel(x)||'Standard')}</button>`).join('')}</div></div>`:(vlabel(v)?`<p class="pm-var">${esc(vlabel(v))}</p>`:'')}
+    ${p.description?`<div class="pm-desc">${esc(p.description)}</div>`:''}
+    <div class="pm-buy">${v.quantity<=0?'<button class="pm-add" disabled>Indisponible pour le moment</button>':inCart?`<div class="pm-qty"><button aria-label="Retirer un" onclick="changeQty('${v.id}',-1);openProduct('${pid}','${v.id}')">−</button><b>${inCart}</b><button aria-label="Ajouter un" onclick="changeQty('${v.id}',1);openProduct('${pid}','${v.id}')">+</button></div><button class="pm-add" onclick="closeProduct();openCart()">Voir mon panier →</button>`:`<button class="pm-add" onclick="addToCart('${v.id}');openProduct('${pid}','${v.id}')">🛒 Ajouter au panier</button>`}</div>
+    <a class="pm-wa" data-wa data-msg="Bonjour, j'ai une question sur : ${esc(p.name)}" href="#" target="_blank" rel="noopener">💬 Une question ? Écrivez-nous sur WhatsApp</a>
+    <ul class="pm-perks"><li>🚚 Livraison rapide partout au Maroc</li><li>💳 Paiement cash ou carte à la livraison</li></ul>
    </div></div>`;
+  anim=false;
+  applyPhone();
  };
- window._pmActive=(i)=>{active=i;renderModal()};
- renderModal();
- $('#pmodal').classList.add('open');
+ window._pmActive=i=>{active=i;draw()};
+ draw();
+ if(first){m.classList.add('open');document.body.style.overflow='hidden'}
 }
-function closeProduct(){$('#pmodal').classList.remove('open')}
+function closeProduct(){$('#pmodal').classList.remove('open');document.body.style.overflow='';window._pmState=null}
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('#pmodal').classList.contains('open'))closeProduct()});
 function renderReviews(){
  const stars=n=>'★'.repeat(n)+'☆'.repeat(5-n);
  $('#revgrid').innerHTML=reviews.length?`<div class="revs">${reviews.map(r=>`<div class="rev"><div class="stars">${stars(r.rating)}</div><b>${esc(r.customer_name)}</b>${r.comment?`<p>${esc(r.comment)}</p>`:''}</div>`).join('')}</div>`:'<div class="panel empty">Soyez la première personne à laisser un avis !</div>';

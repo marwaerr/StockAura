@@ -382,7 +382,7 @@ function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');se
 
 async function boot(){
  const [{data:p,error:e1},{data:pr},{data:rv},{data:ct},{data:br},{data:dp},{data:ss},{data:sc}]=await Promise.all([
-  sb.from('products').select('id,name,price,photo_url,low_threshold,category,subcategory,brand,is_new,on_sale,sale_price,description,product_images(id,image_url),variants(id,variant,color,quantity,photo_url)').eq('visible',true).order('created_at'),
+  sb.from('products').select('id,name,price,photo_url,low_threshold,category,subcategory,brand,is_new,on_sale,sale_price,description,product_images(id,image_url),variants(id,variant,color,quantity,photo_url,label)').eq('visible',true).order('created_at'),
   sb.from('promotions').select('*, promotion_products(product_id)').eq('active',true).order('sort'),
   sb.from('reviews').select('*').eq('approved',true).order('created_at',{ascending:false}).limit(12),
   sb.from('categories').select('*').order('sort').order('name'),
@@ -414,6 +414,7 @@ function renderRibbon(){
  if(!promos.length)return;
  $('#ribbon').innerHTML=promos.map(m=>`<span>🎉 ${esc(m.title)}${m.discount_pct?' — jusqu\u2019\u00e0 -'+m.discount_pct+'%':''}</span>`).join('');
 }
+const vtitle=(p,v)=>p.name+(v&&v.label?' '+v.label:'');
 function combos(){return products.flatMap(p=>p.variants.map(v=>({p,v})))}
 function categories(){return cats.length?cats.map(c=>c.name):[...new Set(products.map(p=>p.category).filter(Boolean))]}
 function deptOfCat(catName){const row=cats.find(c=>c.name===catName);if(!row||!row.department_id)return null;return depts.find(d=>d.id===row.department_id)?.name||null}
@@ -565,7 +566,7 @@ function cardHTML(x){
  return `<div class="prod">${x.p.is_new?'<span class="tag new">Nouveau</span>':(x.p.on_sale?'<span class="tag">Promo</span>':'')}
  <button class="imbtn" onclick="openProduct('${x.p.id}','${x.v.id}')" aria-label="Voir ${esc(x.p.name)}"><div class="im">${(x.v.photo_url||x.p.photo_url)?`<img src="${esc(x.v.photo_url||x.p.photo_url)}" alt="${esc(x.p.name)}">`:'📦'}</div></button>
  <span class="br">${esc(x.p.brand||x.p.category||'Ola Bébé')}</span>
- <h3><a href="#" onclick="openProduct('${x.p.id}','${x.v.id}');return false" style="color:inherit">${esc(x.p.name)}${x.v.variant!=='Standard'?' — '+esc(x.v.variant):''}${x.v.color&&x.v.color!=='Standard'?' '+esc(x.v.color):''}</a></h3>
+ <h3><a href="#" onclick="openProduct('${x.p.id}','${x.v.id}');return false" style="color:inherit">${x.v.label?esc(vtitle(x.p,x.v)):esc(x.p.name)+(x.v.variant!=='Standard'?' — '+esc(x.v.variant):'')+(x.v.color&&x.v.color!=='Standard'?' '+esc(x.v.color):'')}</a></h3>
  <div>${priceHTML(x.p)}${stBadge(x)}</div>
  ${x.v.quantity<=0?'':inCart?`<div class="stepper"><button onclick="changeQty('${x.v.id}',-1)">−</button><b>${inCart}</b><button onclick="changeQty('${x.v.id}',1)">+</button></div>`:`<button class="add" onclick="addToCart('${x.v.id}')">Ajouter au panier</button>`}
  </div>`;
@@ -596,7 +597,7 @@ function openProduct(pid,vid){
    <div class="pm-info">
     ${crumbs.length?`<div class="pm-crumbs">${crumbs.map(esc).join(' <span>›</span> ')}</div>`:''}
     ${p.brand?`<span class="pm-brand">${esc(p.brand)}</span>`:''}
-    <h2>${esc(p.name)}</h2>
+    <h2>${esc(vtitle(p,v))}</h2>
     <div class="pm-price"><b>${dh(price)}</b>${pct?`<s>${dh(p.price)}</s><span class="pm-save">Économisez ${dh(p.price-price)}</span>`:''}</div>
     <span class="pm-stock ${st[1]}">● ${st[0]}</span>
     ${p.variants.length>1?`<div class="pm-opt"><span>Choisissez :</span><div class="pm-chips">${p.variants.map(x=>`<button class="${x.id===v.id?'on':''}${x.quantity<=0?' off':''}" onclick="openProduct('${pid}','${x.id}')">${esc(vlabel(x)||'Standard')}</button>`).join('')}</div></div>`:(vlabel(v)?`<p class="pm-var">${esc(vlabel(v))}</p>`:'')}
@@ -646,7 +647,7 @@ function renderCart(){
  const lines=cartLines();
  $('#drawer').innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"><h2 style="margin:0;font-size:18px">Votre panier</h2><button class="btn o" style="padding:6px 14px" onclick="closeCart()">✕</button></div>
  ${lines.length?shipProgressHTML():''}
- ${lines.length?lines.map(l=>`<div class="citem"><div><b>${esc(l.p.name)}</b><br><span style="color:var(--mute)">${esc(l.v.variant)}${l.v.color&&l.v.color!=='Standard'?' · '+esc(l.v.color):''}</span></div><div style="display:flex;align-items:center;gap:6px"><button class="qtybtn" onclick="changeQty('${l.v.id}',-1)">−</button>${l.q}<button class="qtybtn" onclick="changeQty('${l.v.id}',1)">+</button></div></div>`).join(''):emptyCartHTML()}
+ ${lines.length?lines.map(l=>`<div class="citem"><div><b>${esc(vtitle(l.p,l.v))}</b><br><span style="color:var(--mute)">${esc(l.v.variant)}${l.v.color&&l.v.color!=='Standard'?' · '+esc(l.v.color):''}</span></div><div style="display:flex;align-items:center;gap:6px"><button class="qtybtn" onclick="changeQty('${l.v.id}',-1)">−</button>${l.q}<button class="qtybtn" onclick="changeQty('${l.v.id}',1)">+</button></div></div>`).join(''):emptyCartHTML()}
  ${lines.length?`<div class="total" style="margin:16px 0">Total : ${dh(cartTotal())}</div>
  <label for="cn">Nom</label><input id="cn">
  <label for="cp">Téléphone</label><input id="cp">

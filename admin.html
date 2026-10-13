@@ -130,7 +130,7 @@ async function go(v){view=v;await render()}
 
 /* ---------- Data ---------- */
 async function loadProducts(){
- const{data,error}=await sb.from('products').select('id,name,price,cost,photo_url,visible,low_threshold,category,subcategory,brand,is_new,on_sale,sale_price,description,product_images(id,image_url),variants(id,variant,color,barcode,quantity,photo_url)').order('created_at');
+ const{data,error}=await sb.from('products').select('id,name,price,cost,photo_url,visible,low_threshold,category,subcategory,brand,is_new,on_sale,sale_price,description,product_images(id,image_url),variants(id,variant,color,barcode,quantity,photo_url,label)').order('created_at');
  if(error){toast(error.message);return[]}
  return data||[];
 }
@@ -286,7 +286,7 @@ function cbPreview(){
  const V=parseList($('#pv').value),C=parseList($('#pc').value);
  const multi=V.length*C.length>1;
  const sq=$('#pqwrap');if(sq)sq.style.display=multi?'none':'';
- $('#cbx').innerHTML=multi?'<p class="hint" style="margin:8px 0 10px">Plusieurs tailles/couleurs : saisissez la quantité (et le code-barres si besoin) de chacune.</p>'+V.flatMap(v=>C.map(c=>`<div class="scan"><span class="cl">${esc(v)} · ${esc(c)}</span><input class="cbn" id="cbn_${esc(v)}_${esc(c)}" data-v="${esc(v)}" data-c="${esc(c)}" placeholder="Code-barres (facultatif)"><input class="cbq" id="cbq_${esc(v)}_${esc(c)}" data-v="${esc(v)}" data-c="${esc(c)}" type="number" min="0" placeholder="Qté" style="width:90px;flex:none"><input class="cbp" id="cbp_${esc(v)}_${esc(c)}" data-v="${esc(v)}" data-c="${esc(c)}" type="file" accept="image/*" title="Photo de cette déclinaison" style="max-width:200px"></div>`)).join(''):'';
+ $('#cbx').innerHTML=multi?'<p class="hint" style="margin:8px 0 10px">Plusieurs tailles/couleurs : saisissez la quantité (et le code-barres si besoin) de chacune.</p>'+V.flatMap(v=>C.map(c=>`<div class="scan"><span class="cl">${esc(v)} · ${esc(c)}</span><input class="cbn" id="cbn_${esc(v)}_${esc(c)}" data-v="${esc(v)}" data-c="${esc(c)}" placeholder="Code-barres (facultatif)"><input class="cbq" id="cbq_${esc(v)}_${esc(c)}" data-v="${esc(v)}" data-c="${esc(c)}" type="number" min="0" placeholder="Qté" style="width:90px;flex:none"><input class="cbl" id="cbl_${esc(v)}_${esc(c)}" data-v="${esc(v)}" data-c="${esc(c)}" placeholder="Libellé site (ex : Rose 0-6 mois)" style="min-width:170px"><input class="cbp" id="cbp_${esc(v)}_${esc(c)}" data-v="${esc(v)}" data-c="${esc(c)}" type="file" accept="image/*" title="Photo de cette déclinaison" style="max-width:200px"></div>`)).join(''):'';
 }
 async function uploadVariantPhoto(file,variantId){
  const ext=(file.name.split('.').pop()||'jpg').toLowerCase(),path=`variants/${variantId}-${Date.now()}.${ext}`;
@@ -368,6 +368,7 @@ function productsView(){
  <div class="grid"><div><label for="pn">${t('name')} du produit</label><input id="pn"></div>
  <div><label for="pbrand">Marque</label>${brandOptions('pbrand')}${!brands.length?`<p class="hint" style="margin:4px 0 0">Ajoutez vos marques dans <a href="#" onclick="view='site';siteTab='brands';render();return false">Site → Marques</a>.</p>`:''}</div>
  <div><label for="pb">${t('barcode')}</label><input id="pb" placeholder="Si une seule déclinaison"></div>
+ <div><label for="plabel">Libellé affiché sur le site (facultatif)</label><input id="plabel" placeholder="Ex : 0-6 mois, Rose, Pack de 3"></div>
  <div><label for="pp">${t('price')} de vente (DH)</label><input id="pp" type="number" min="0" step="any"></div>
  ${ad?`<div><label for="pa">Prix d'achat (DH)</label><input id="pa" type="number" min="0" step="any"></div>`:''}</div>
  <div class="grid"><div><label for="pdept">Rayon</label><select id="pdept" onchange="onDeptChange()">${deptSelectOptions()}</select></div><div><label for="pcat">${t('category')}</label><div id="catwrap2">${catOptionsForDept('','')}</div></div></div>
@@ -405,14 +406,15 @@ function editForm(id){
  <div class="grid"><div><label for="ecat">Catégorie</label><select id="ecat" onchange="onEditCatChange()">${departments.map(d=>`<optgroup label="${esc(d.name)}">${categories.filter(c=>c.department_id===d.id).map(c=>`<option value="${esc(c.name)}" ${p.category===c.name?'selected':''}>${esc(c.name)}</option>`).join('')}</optgroup>`).join('')}${categories.filter(c=>!c.department_id).map(c=>`<option value="${esc(c.name)}" ${p.category===c.name?'selected':''}>${esc(c.name)}</option>`).join('')}</select></div><div><label for="esub">Sous-catégorie</label><div id="esubwrap">${editSubOptions(p.category,p.subcategory)}</div></div></div>
  <label for="edesc">Description</label><textarea id="edesc" rows="3" style="width:100%;font:inherit;border:1px solid var(--line);border-radius:8px;padding:9px 11px;margin-bottom:12px">${esc(p.description||'')}</textarea>
  <h3 style="margin:6px 0 8px">Déclinaisons (taille / couleur / code-barres / photo / stock)</h3><p class="hint" style="margin:0 0 10px">Modifiez une ligne puis cliquez « Enregistrer » sur cette ligne. Le stock se corrige ici (inventaire) ; pour un réapprovisionnement avec fournisseur, utilisez plutôt Entrées.</p>
- <div class="panel scroll"><table><tr><th>Taille</th><th>Couleur</th><th>${t('barcode')}</th><th>Photo</th><th class="n">Stock</th><th></th></tr>${p.variants.map(v=>`<tr>
+ <div class="panel scroll"><table><tr><th>Taille</th><th>Couleur</th><th>${t('barcode')}</th><th>Libellé site</th><th>Photo</th><th class="n">Stock</th><th></th></tr>${p.variants.map(v=>`<tr>
   <td><input id="evv_${v.id}" value="${esc(v.variant)}" style="min-width:80px"></td>
   <td><input id="evc_${v.id}" value="${esc(v.color)}" style="min-width:80px"></td>
   <td><input id="evb_${v.id}" value="${esc(v.barcode||'')}" placeholder="—" style="min-width:120px"></td>
+  <td><input id="evl_${v.id}" value="${esc(v.label||'')}" placeholder="Ex : Rose 0-6 mois" style="min-width:140px"></td>
   <td>${v.photo_url?`<img class="th" src="${esc(v.photo_url)}" alt="" style="display:block;margin-bottom:4px">`:''}<input id="evp_${v.id}" type="file" accept="image/*" style="max-width:170px"></td>
   <td class="n"><input id="evq_${v.id}" type="number" min="0" value="${v.quantity??0}" style="width:80px"></td>
   <td class="n"><button class="btn ghost" onclick="saveVariant('${v.id}')">Enregistrer</button> <button class="btn ghost" onclick="deleteVariant('${v.id}','${id}')">Suppr.</button></td></tr>`).join('')}</table></div>
- <div class="row" style="margin-top:10px"><input id="nvv" placeholder="Taille (ex: M)" style="min-width:80px"><input id="nvc" placeholder="Couleur (ex: Rose)" style="min-width:80px"><input id="nvb" placeholder="Code-barres (facultatif)" style="min-width:120px"><input id="nvq" type="number" min="0" placeholder="Stock initial" style="min-width:90px"><input id="nvp" type="file" accept="image/*" style="max-width:190px"><button class="btn ghost" onclick="addVariant('${id}')">Ajouter la déclinaison</button></div>
+ <div class="row" style="margin-top:10px"><input id="nvv" placeholder="Taille (ex: M)" style="min-width:80px"><input id="nvc" placeholder="Couleur (ex: Rose)" style="min-width:80px"><input id="nvb" placeholder="Code-barres (facultatif)" style="min-width:120px"><input id="nvl" placeholder="Libellé site (facultatif)" style="min-width:140px"><input id="nvq" type="number" min="0" placeholder="Stock initial" style="min-width:90px"><input id="nvp" type="file" accept="image/*" style="max-width:190px"><button class="btn ghost" onclick="addVariant('${id}')">Ajouter la déclinaison</button></div>
  <div class="grid"><div><label for="ethresh">Seuil stock faible</label><input id="ethresh" type="number" min="0" value="${p.low_threshold||''}"></div><div><label for="ephoto">Photo principale (remplacer, facultatif)</label><input id="ephoto" type="file" accept="image/*"></div></div>
  <label style="display:flex;gap:8px;align-items:center;font-weight:400;margin:10px 0"><input type="checkbox" id="evis" ${p.visible?'checked':''} style="width:auto">Afficher sur le site</label>
  <label style="display:flex;gap:8px;align-items:center;font-weight:400;margin:0 0 10px"><input type="checkbox" id="enew" ${p.is_new?'checked':''} style="width:auto">Nouveauté</label>
@@ -469,7 +471,7 @@ async function saveEdit(id){
 async function saveVariant(vid){
  const variant=$('#evv_'+vid).value.trim()||'Standard',color=$('#evc_'+vid).value.trim()||'Standard',barcode=$('#evb_'+vid).value.trim()||null;
  if(!(await checkBarcodeFree(barcode,vid)))return;
- const patch={variant,color,barcode};
+ const patch={variant,color,barcode,label:$('#evl_'+vid).value.trim()||null};
  const nq=parseInt($('#evq_'+vid).value);if(!isNaN(nq)&&nq>=0)patch.quantity=nq;
  const f=$('#evp_'+vid)?.files[0];
  if(f){const url=await uploadVariantPhoto(f,vid);if(!url)return;patch.photo_url=url}
@@ -488,7 +490,7 @@ async function deleteVariant(vid,pid){
 async function addVariant(pid){
  const variant=$('#nvv').value.trim()||'Standard',color=$('#nvc').value.trim()||'Standard',barcode=$('#nvb').value.trim()||null,qty=parseInt($('#nvq').value)||0;
  if(!(await checkBarcodeFree(barcode,null)))return;
- const{data:nv,error}=await sb.from('variants').insert({product_id:pid,variant,color,barcode}).select('id').single();
+ const{data:nv,error}=await sb.from('variants').insert({product_id:pid,variant,color,barcode,label:$('#nvl').value.trim()||null}).select('id').single();
  if(error){toast('Ajout impossible : '+error.message);return}
  const f=$('#nvp').files[0];
  if(f){const url=await uploadVariantPhoto(f,nv.id);if(url)await sb.from('variants').update({photo_url:url}).eq('id',nv.id)}
@@ -519,7 +521,8 @@ async function addProduct(){
   const cbInput=[...document.querySelectorAll('.cbn')].find(i=>i.dataset.v===v&&i.dataset.c===c);
   const qInput=[...document.querySelectorAll('.cbq')].find(i=>i.dataset.v===v&&i.dataset.c===c);
   const pInput=[...document.querySelectorAll('.cbp')].find(i=>i.dataset.v===v&&i.dataset.c===c);
-  rows.push({variant:v,color:c,barcode:(single?bc:(cbInput?cbInput.value.trim():''))||null});
+  const lInput=[...document.querySelectorAll('.cbl')].find(i=>i.dataset.v===v&&i.dataset.c===c);
+  rows.push({variant:v,color:c,barcode:(single?bc:(cbInput?cbInput.value.trim():''))||null,label:(single?$('#plabel').value.trim():(lInput?lInput.value.trim():''))||null});
   extra.push({v,c,q:parseInt(single?$('#pq').value:(qInput?qInput.value:''))||0,photo:(!single&&pInput&&pInput.files[0])||null});
  }
  // Vérifie les doublons AVANT de créer quoi que ce soit (évite un produit orphelin sans déclinaison)

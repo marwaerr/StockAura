@@ -7,6 +7,7 @@
 <link rel="icon" type="image/png" href="logo.png">
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<style>#toast{border-radius:16px;max-width:min(92vw,480px);max-height:60vh;overflow-y:auto;white-space:pre-wrap;word-break:break-word;text-align:left;line-height:1.4;box-shadow:0 8px 24px rgba(0,0,0,.25)}#toast.show{pointer-events:auto;cursor:pointer}</style>
 </head>
 <body class="loggedout">
 <div class="app">
@@ -59,7 +60,12 @@ function restoreDrafts(){
  }
 }
 function cancelAddProduct(){clearDrafts();newPhotoFile=null;render()}
-function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2400)}
+function toast(m){
+ const t=$('#toast');t.textContent=m;t.classList.add('show');
+ clearTimeout(t._hideTO);
+ t._hideTO=setTimeout(()=>t.classList.remove('show'),Math.min(12000,Math.max(2400,String(m).length*70)));
+ t.onclick=()=>{clearTimeout(t._hideTO);t.classList.remove('show')};
+}
 function can(v){return me&&PERM[me.role]?.includes(v)}
 const isAdmin=()=>me&&me.role==='admin';
 
@@ -124,7 +130,7 @@ async function go(v){view=v;await render()}
 
 /* ---------- Data ---------- */
 async function loadProducts(){
- const{data,error}=await sb.from('products').select('id,name,price,cost,photo_url,visible,low_threshold,category,subcategory,brand,is_new,on_sale,sale_price,description,product_images(id,image_url),variants(id,variant,color,barcode,quantity)').order('created_at');
+ const{data,error}=await sb.from('products').select('id,name,price,cost,photo_url,visible,low_threshold,category,subcategory,brand,is_new,on_sale,sale_price,description,product_images(id,image_url),variants(id,variant,color,barcode,quantity,photo_url)').order('created_at');
  if(error){toast(error.message);return[]}
  return data||[];
 }
@@ -280,7 +286,22 @@ function cbPreview(){
  const V=parseList($('#pv').value),C=parseList($('#pc').value);
  const multi=V.length*C.length>1;
  const sq=$('#pqwrap');if(sq)sq.style.display=multi?'none':'';
- $('#cbx').innerHTML=multi?'<p class="hint" style="margin:8px 0 10px">Plusieurs tailles/couleurs : saisissez la quantité (et le code-barres si besoin) de chacune.</p>'+V.flatMap(v=>C.map(c=>`<div class="scan"><span class="cl">${esc(v)} · ${esc(c)}</span><input class="cbn" id="cbn_${esc(v)}_${esc(c)}" data-v="${esc(v)}" data-c="${esc(c)}" placeholder="Code-barres (facultatif)"><input class="cbq" id="cbq_${esc(v)}_${esc(c)}" data-v="${esc(v)}" data-c="${esc(c)}" type="number" min="0" placeholder="Qté" style="width:90px;flex:none"></div>`)).join(''):'';
+ $('#cbx').innerHTML=multi?'<p class="hint" style="margin:8px 0 10px">Plusieurs tailles/couleurs : saisissez la quantité (et le code-barres si besoin) de chacune.</p>'+V.flatMap(v=>C.map(c=>`<div class="scan"><span class="cl">${esc(v)} · ${esc(c)}</span><input class="cbn" id="cbn_${esc(v)}_${esc(c)}" data-v="${esc(v)}" data-c="${esc(c)}" placeholder="Code-barres (facultatif)"><input class="cbq" id="cbq_${esc(v)}_${esc(c)}" data-v="${esc(v)}" data-c="${esc(c)}" type="number" min="0" placeholder="Qté" style="width:90px;flex:none"><input class="cbp" id="cbp_${esc(v)}_${esc(c)}" data-v="${esc(v)}" data-c="${esc(c)}" type="file" accept="image/*" title="Photo de cette déclinaison" style="max-width:200px"></div>`)).join(''):'';
+}
+async function uploadVariantPhoto(file,variantId){
+ const ext=(file.name.split('.').pop()||'jpg').toLowerCase(),path=`variants/${variantId}-${Date.now()}.${ext}`;
+ const{error}=await sb.storage.from('product-photos').upload(path,file,{upsert:true,cacheControl:'3600'});
+ if(error){toast('Photo de déclinaison non envoyée : '+error.message);return null}
+ return sb.storage.from('product-photos').getPublicUrl(path).data.publicUrl;
+}
+async function checkBarcodeFree(code,excludeVariantId){
+ if(!code)return true;
+ let q=sb.from('variants').select('id,products(name)').eq('barcode',code);
+ if(excludeVariantId)q=q.neq('id',excludeVariantId);
+ const{data,error}=await q;
+ if(error){toast(error.message);return false}
+ if(data&&data.length){toast(`Le code-barres "${code}" est déjà utilisé par le produit "${data[0].products?.name||'?'}"`);return false}
+ return true;
 }
 function catOptions(sel){
  const groups=departments.map(d=>`<optgroup label="${esc(d.name)}">${categories.filter(c=>c.department_id===d.id).map(c=>`<option value="${esc(c.name)}" ${sel===c.name?'selected':''}>${esc(c.name)}</option>`).join('')}</optgroup>`).join('');
@@ -383,8 +404,15 @@ function editForm(id){
  <div class="grid"><div><label for="eprice">Prix de vente (DH)</label><input id="eprice" type="number" min="0" step="any" value="${p.price}"></div>${isAdmin()?`<div><label for="ecost">Prix d'achat (DH)</label><input id="ecost" type="number" min="0" step="any" value="${p.cost||0}"></div>`:''}</div>
  <div class="grid"><div><label for="ecat">Catégorie</label><select id="ecat" onchange="onEditCatChange()">${departments.map(d=>`<optgroup label="${esc(d.name)}">${categories.filter(c=>c.department_id===d.id).map(c=>`<option value="${esc(c.name)}" ${p.category===c.name?'selected':''}>${esc(c.name)}</option>`).join('')}</optgroup>`).join('')}${categories.filter(c=>!c.department_id).map(c=>`<option value="${esc(c.name)}" ${p.category===c.name?'selected':''}>${esc(c.name)}</option>`).join('')}</select></div><div><label for="esub">Sous-catégorie</label><div id="esubwrap">${editSubOptions(p.category,p.subcategory)}</div></div></div>
  <label for="edesc">Description</label><textarea id="edesc" rows="3" style="width:100%;font:inherit;border:1px solid var(--line);border-radius:8px;padding:9px 11px;margin-bottom:12px">${esc(p.description||'')}</textarea>
- <h3 style="margin:6px 0 8px">Stock par déclinaison</h3><p class="hint" style="margin:0 0 10px">Corrigez ici la quantité réelle (inventaire). Pour un réapprovisionnement avec fournisseur, utilisez plutôt Entrées.</p>
- <div class="grid">${p.variants.map(v=>`<div><label for="evq_${v.id}">${esc(v.variant)}${v.color&&v.color!=='Standard'?' · '+esc(v.color):''}</label><input id="evq_${v.id}" type="number" min="0" value="${v.quantity??0}"></div>`).join('')}</div>
+ <h3 style="margin:6px 0 8px">Déclinaisons (taille / couleur / code-barres / photo / stock)</h3><p class="hint" style="margin:0 0 10px">Modifiez une ligne puis cliquez « Enregistrer » sur cette ligne. Le stock se corrige ici (inventaire) ; pour un réapprovisionnement avec fournisseur, utilisez plutôt Entrées.</p>
+ <div class="panel scroll"><table><tr><th>Taille</th><th>Couleur</th><th>${t('barcode')}</th><th>Photo</th><th class="n">Stock</th><th></th></tr>${p.variants.map(v=>`<tr>
+  <td><input id="evv_${v.id}" value="${esc(v.variant)}" style="min-width:80px"></td>
+  <td><input id="evc_${v.id}" value="${esc(v.color)}" style="min-width:80px"></td>
+  <td><input id="evb_${v.id}" value="${esc(v.barcode||'')}" placeholder="—" style="min-width:120px"></td>
+  <td>${v.photo_url?`<img class="th" src="${esc(v.photo_url)}" alt="" style="display:block;margin-bottom:4px">`:''}<input id="evp_${v.id}" type="file" accept="image/*" style="max-width:170px"></td>
+  <td class="n"><input id="evq_${v.id}" type="number" min="0" value="${v.quantity??0}" style="width:80px"></td>
+  <td class="n"><button class="btn ghost" onclick="saveVariant('${v.id}')">Enregistrer</button> <button class="btn ghost" onclick="deleteVariant('${v.id}','${id}')">Suppr.</button></td></tr>`).join('')}</table></div>
+ <div class="row" style="margin-top:10px"><input id="nvv" placeholder="Taille (ex: M)" style="min-width:80px"><input id="nvc" placeholder="Couleur (ex: Rose)" style="min-width:80px"><input id="nvb" placeholder="Code-barres (facultatif)" style="min-width:120px"><input id="nvq" type="number" min="0" placeholder="Stock initial" style="min-width:90px"><input id="nvp" type="file" accept="image/*" style="max-width:190px"><button class="btn ghost" onclick="addVariant('${id}')">Ajouter la déclinaison</button></div>
  <div class="grid"><div><label for="ethresh">Seuil stock faible</label><input id="ethresh" type="number" min="0" value="${p.low_threshold||''}"></div><div><label for="ephoto">Photo principale (remplacer, facultatif)</label><input id="ephoto" type="file" accept="image/*"></div></div>
  <label style="display:flex;gap:8px;align-items:center;font-weight:400;margin:10px 0"><input type="checkbox" id="evis" ${p.visible?'checked':''} style="width:auto">Afficher sur le site</label>
  <label style="display:flex;gap:8px;align-items:center;font-weight:400;margin:0 0 10px"><input type="checkbox" id="enew" ${p.is_new?'checked':''} style="width:auto">Nouveauté</label>
@@ -438,6 +466,35 @@ async function saveEdit(id){
  }
  editingId=null;clearDrafts();toast('Produit mis à jour 🎉');await refresh()
 }
+async function saveVariant(vid){
+ const variant=$('#evv_'+vid).value.trim()||'Standard',color=$('#evc_'+vid).value.trim()||'Standard',barcode=$('#evb_'+vid).value.trim()||null;
+ if(!(await checkBarcodeFree(barcode,vid)))return;
+ const patch={variant,color,barcode};
+ const nq=parseInt($('#evq_'+vid).value);if(!isNaN(nq)&&nq>=0)patch.quantity=nq;
+ const f=$('#evp_'+vid)?.files[0];
+ if(f){const url=await uploadVariantPhoto(f,vid);if(!url)return;patch.photo_url=url}
+ const{error}=await sb.from('variants').update(patch).eq('id',vid);
+ if(error){toast(error.message);return}
+ delete fileDrafts['evp_'+vid];toast('Déclinaison mise à jour 🎉');await refresh()
+}
+async function deleteVariant(vid,pid){
+ const p=products.find(x=>x.id===pid);
+ if(p&&p.variants.length<=1){toast('Impossible : un produit doit garder au moins une déclinaison');return}
+ if(!confirm('Supprimer cette déclinaison ? Cette action est irréversible.'))return;
+ const{error}=await sb.from('variants').delete().eq('id',vid);
+ if(error){toast('Suppression impossible (elle a sûrement un historique de ventes/entrées) : '+error.message);return}
+ toast('Déclinaison supprimée');await refresh()
+}
+async function addVariant(pid){
+ const variant=$('#nvv').value.trim()||'Standard',color=$('#nvc').value.trim()||'Standard',barcode=$('#nvb').value.trim()||null,qty=parseInt($('#nvq').value)||0;
+ if(!(await checkBarcodeFree(barcode,null)))return;
+ const{data:nv,error}=await sb.from('variants').insert({product_id:pid,variant,color,barcode}).select('id').single();
+ if(error){toast('Ajout impossible : '+error.message);return}
+ const f=$('#nvp').files[0];
+ if(f){const url=await uploadVariantPhoto(f,nv.id);if(url)await sb.from('variants').update({photo_url:url}).eq('id',nv.id)}
+ if(qty>0){const pr=products.find(x=>x.id===pid);const{error:e3}=await sb.rpc('record_move',{p_variant_id:nv.id,p_type:'in',p_qty:qty,p_unit_price:pr?.price||0,p_ref:'Stock initial',p_supplier:null,p_payment:null,p_by:me.id});if(e3)toast('Stock initial non enregistré : '+e3.message)}
+ clearDrafts();toast('Déclinaison ajoutée 🎉');await refresh()
+}
 async function uploadGalleryPhoto(file,productId){
  const ext=(file.name.split('.').pop()||'jpg').toLowerCase(),path=`${productId}/${Date.now()}-${Math.random().toString(36).slice(2,7)}.${ext}`;
  const{error}=await sb.storage.from('product-photos').upload(path,file,{upsert:true,cacheControl:'3600'});
@@ -456,24 +513,38 @@ async function addProduct(){
  if(!name||isNaN(price)){toast('Indiquez un nom et un prix');return}
  if(!category){toast('Indiquez une catégorie');return}
  const onSale=$('#psale').checked,salePrice=onSale?(parseFloat($('#pspv').value)||null):null;
- const{data:p,error}=await sb.from('products').insert({name,price,cost:isAdmin()?(parseFloat($('#pa').value)||0):0,category,subcategory:$('#psub').value.trim()||null,brand:$('#pbrand').value.trim()||null,description:$('#pdesc').value.trim()||null,is_new:$('#pnew').checked,on_sale:onSale,sale_price:salePrice,visible:$('#pvis').checked,low_threshold:parseInt($('#pth').value)||null}).select().single();
- if(error){toast(error.message);return}
- if(newPhotoFile){const url=await uploadPhoto(newPhotoFile,p.id);if(url)await sb.from('products').update({photo_url:url}).eq('id',p.id);newPhotoFile=null}
- const galleryFiles=[...($('#pgallery').files||[])];
- for(const f of galleryFiles){const url=await uploadGalleryPhoto(f,p.id);if(url)await sb.from('product_images').insert({product_id:p.id,image_url:url})}
  const V=parseList($('#pv').value),C=parseList($('#pc').value),single=V.length*C.length===1,bc=$('#pb').value.trim();
- const rows=[];
+ const rows=[],extra=[];
  for(const v of V)for(const c of C){
   const cbInput=[...document.querySelectorAll('.cbn')].find(i=>i.dataset.v===v&&i.dataset.c===c);
   const qInput=[...document.querySelectorAll('.cbq')].find(i=>i.dataset.v===v&&i.dataset.c===c);
-  rows.push({product_id:p.id,variant:v,color:c,barcode:(single?bc:(cbInput?cbInput.value.trim():''))||null,_q:parseInt(single?$('#pq').value:(qInput?qInput.value:''))||0});
+  const pInput=[...document.querySelectorAll('.cbp')].find(i=>i.dataset.v===v&&i.dataset.c===c);
+  rows.push({variant:v,color:c,barcode:(single?bc:(cbInput?cbInput.value.trim():''))||null});
+  extra.push({v,c,q:parseInt(single?$('#pq').value:(qInput?qInput.value:''))||0,photo:(!single&&pInput&&pInput.files[0])||null});
  }
- const qtys=rows.map(r=>r._q);rows.forEach(r=>delete r._q);
- const{data:vrows,error:e2}=await sb.from('variants').insert(rows).select();
- if(e2){toast('Produit créé mais erreur sur les déclinaisons : '+e2.message);return}
- for(let i=0;i<(vrows||[]).length;i++){
-  const q=qtys[rows.findIndex(r=>r.variant===vrows[i].variant&&r.color===vrows[i].color)]||0;
-  if(q>0){const{error:e3}=await sb.rpc('record_move',{p_variant_id:vrows[i].id,p_type:'in',p_qty:q,p_unit_price:price,p_ref:'Stock initial',p_supplier:null,p_payment:null,p_by:me.id});if(e3)toast('Stock initial non enregistré : '+e3.message)}
+ // Vérifie les doublons AVANT de créer quoi que ce soit (évite un produit orphelin sans déclinaison)
+ const codes=rows.map(r=>r.barcode).filter(Boolean);
+ if(new Set(codes).size!==codes.length){toast('Le même code-barres est saisi deux fois dans ce formulaire');return}
+ if(codes.length){
+  const{data:dups,error:edup}=await sb.from('variants').select('barcode,products(name)').in('barcode',codes);
+  if(edup){toast(edup.message);return}
+  if(dups&&dups.length){toast(`Le code-barres "${dups[0].barcode}" est déjà utilisé par le produit "${dups[0].products?.name||'?'}"`);return}
+ }
+ const{data:p,error}=await sb.from('products').insert({name,price,cost:isAdmin()?(parseFloat($('#pa').value)||0):0,category,subcategory:$('#psub').value.trim()||null,brand:$('#pbrand').value.trim()||null,description:$('#pdesc').value.trim()||null,is_new:$('#pnew').checked,on_sale:onSale,sale_price:salePrice,visible:$('#pvis').checked,low_threshold:parseInt($('#pth').value)||null}).select().single();
+ if(error){toast(error.message);return}
+ const{data:vrows,error:e2}=await sb.from('variants').insert(rows.map(r=>({...r,product_id:p.id}))).select();
+ if(e2){
+  await sb.from('products').delete().eq('id',p.id);
+  toast('Impossible de créer les déclinaisons (le produit n\'a pas été créé, réessayez) : '+e2.message);
+  return;
+ }
+ if(newPhotoFile){const url=await uploadPhoto(newPhotoFile,p.id);if(url)await sb.from('products').update({photo_url:url}).eq('id',p.id);newPhotoFile=null}
+ const galleryFiles=[...($('#pgallery').files||[])];
+ for(const f of galleryFiles){const url=await uploadGalleryPhoto(f,p.id);if(url)await sb.from('product_images').insert({product_id:p.id,image_url:url})}
+ for(const vr of (vrows||[])){
+  const x=extra.find(e=>e.v===vr.variant&&e.c===vr.color);if(!x)continue;
+  if(x.photo){const url=await uploadVariantPhoto(x.photo,vr.id);if(url)await sb.from('variants').update({photo_url:url}).eq('id',vr.id)}
+  if(x.q>0){const{error:e3}=await sb.rpc('record_move',{p_variant_id:vr.id,p_type:'in',p_qty:x.q,p_unit_price:price,p_ref:'Stock initial',p_supplier:null,p_payment:null,p_by:me.id});if(e3)toast('Stock initial non enregistré : '+e3.message)}
  }
  clearDrafts();toast('Produit ajouté 🎉');await refresh()
 }
@@ -1061,19 +1132,29 @@ async function users(){
  <div class="panel scroll"><table><tr><th>Nom</th><th>Rôle</th>${isAdmin()?'<th>Nouveau mot de passe</th>':''}<th class="n"></th></tr>${list.map(u=>`<tr><td><input value="${esc(u.name)}" onchange="renameUser('${u.id}',this.value)" style="min-width:140px"></td><td><select onchange="setRole('${u.id}',this.value)">${Object.entries(ROLE).map(([k,l])=>`<option value="${k}" ${u.role===k?'selected':''}>${l}</option>`).join('')}</select></td>${isAdmin()?`<td><div class="row" style="margin:0"><input type="password" id="pw_${u.id}" placeholder="6 caractères min." style="min-width:120px"><button class="btn ghost" onclick="resetPassword('${u.id}')">Réinitialiser</button></div></td>`:''}<td class="n">${u.id===me.id?'<span class="hint">(vous)</span>':''}</td></tr>`).join('')}</table></div>
  <p class="hint">Vendeur : ventes et consultation. Magasinier : produits et entrées. Administrateur : tout, y compris profit et utilisateurs.</p>`;
 }
+async function callFn(name,body){
+ const{data,error}=await sb.functions.invoke(name,{body});
+ if(error){
+  let msg=error.message||'Erreur';
+  if(error.context&&typeof error.context.json==='function'){try{const j=await error.context.json();if(j&&j.error)msg=j.error}catch(e){}}
+  return{ok:false,msg};
+ }
+ if(data&&data.error)return{ok:false,msg:data.error};
+ return{ok:true,data};
+}
 async function resetPassword(id){
  const el=$('#pw_'+id),password=el.value;
  if(!password||password.length<6){toast('Mot de passe : 6 caractères minimum');return}
- const{data,error}=await sb.functions.invoke('reset-password',{body:{userId:id,password}});
- if(error||data?.error){toast((data&&data.error)||error.message||'Erreur lors de la réinitialisation');return}
+ const r=await callFn('reset-password',{userId:id,password});
+ if(!r.ok){toast(r.msg);return}
  el.value='';clearDrafts();toast('Mot de passe mis à jour 🎉')
 }
 async function createUser(){
  const name=$('#nun').value.trim(),email=$('#nue').value.trim(),password=$('#nup').value,role=$('#nur').value;
  if(!name||!email||!password){toast('Nom, email et mot de passe requis');return}
  if(password.length<6){toast('Mot de passe : 6 caractères minimum');return}
- const{data,error}=await sb.functions.invoke('create-user',{body:{name,email,password,role}});
- if(error||data?.error){toast((data&&data.error)||error.message||'Erreur lors de la création');return}
+ const r=await callFn('create-user',{name,email,password,role});
+ if(!r.ok){toast(r.msg);return}
  $('#nun').value='';$('#nue').value='';$('#nup').value='';
  clearDrafts();toast('Compte créé 🎉');await render()
 }

@@ -382,7 +382,7 @@ function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');se
 
 async function boot(){
  const [{data:p,error:e1},{data:pr},{data:rv},{data:ct},{data:br},{data:dp},{data:ss},{data:sc}]=await Promise.all([
-  sb.from('products').select('id,name,price,photo_url,low_threshold,category,subcategory,brand,is_new,on_sale,sale_price,description,product_images(id,image_url),variants(id,variant,color,quantity)').eq('visible',true).order('created_at'),
+  sb.from('products').select('id,name,price,photo_url,low_threshold,category,subcategory,brand,is_new,on_sale,sale_price,description,product_images(id,image_url),variants(id,variant,color,quantity,photo_url)').eq('visible',true).order('created_at'),
   sb.from('promotions').select('*, promotion_products(product_id)').eq('active',true).order('sort'),
   sb.from('reviews').select('*').eq('approved',true).order('created_at',{ascending:false}).limit(12),
   sb.from('categories').select('*').order('sort').order('name'),
@@ -563,7 +563,7 @@ function priceHTML(p){return p.on_sale&&p.sale_price?`<span class="pr">${dh(p.sa
 function cardHTML(x){
  const inCart=cart[x.v.id]||0;
  return `<div class="prod">${x.p.is_new?'<span class="tag new">Nouveau</span>':(x.p.on_sale?'<span class="tag">Promo</span>':'')}
- <button class="imbtn" onclick="openProduct('${x.p.id}','${x.v.id}')" aria-label="Voir ${esc(x.p.name)}"><div class="im">${x.p.photo_url?`<img src="${esc(x.p.photo_url)}" alt="${esc(x.p.name)}">`:'📦'}</div></button>
+ <button class="imbtn" onclick="openProduct('${x.p.id}','${x.v.id}')" aria-label="Voir ${esc(x.p.name)}"><div class="im">${(x.v.photo_url||x.p.photo_url)?`<img src="${esc(x.v.photo_url||x.p.photo_url)}" alt="${esc(x.p.name)}">`:'📦'}</div></button>
  <span class="br">${esc(x.p.brand||x.p.category||'Ola Bébé')}</span>
  <h3><a href="#" onclick="openProduct('${x.p.id}','${x.v.id}');return false" style="color:inherit">${esc(x.p.name)}${x.v.variant!=='Standard'?' — '+esc(x.v.variant):''}${x.v.color&&x.v.color!=='Standard'?' '+esc(x.v.color):''}</a></h3>
  <div>${priceHTML(x.p)}${stBadge(x)}</div>
@@ -573,7 +573,7 @@ function cardHTML(x){
 function openProduct(pid,vid){
  const p=products.find(x=>x.id===pid);if(!p)return;
  const v=p.variants.find(x=>x.id===vid)||p.variants[0];
- const imgs=[p.photo_url,...(p.product_images||[]).map(i=>i.image_url)].filter(Boolean);
+ const imgs=[...new Set([v.photo_url,p.photo_url,...(p.product_images||[]).map(i=>i.image_url)].filter(Boolean))];
  const m=$('#pmodal'),first=!m.classList.contains('open');
  let active=!first&&window._pmState&&window._pmState.pid===pid?Math.min(window._pmState.active,Math.max(0,imgs.length-1)):0;
  const vlabel=x=>[x.variant!=='Standard'?x.variant:'',x.color&&x.color!=='Standard'?x.color:''].filter(Boolean).join(' · ');

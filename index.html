@@ -255,7 +255,7 @@ footer .fc a,footer .fc span{display:flex;gap:6px;align-items:flex-start}
 .pm-stock{align-self:flex-start;font-size:12px;font-weight:600;padding:4px 12px;border-radius:99px}
 .pm-stock.ok{background:#e7f6ec;color:#2f8a52}.pm-stock.low{background:#fff4dc;color:#a8730f}.pm-stock.out{background:#fdeaea;color:#b23b3b}
 .pm-opt span{display:block;font-size:12.5px;font-weight:600;margin-bottom:8px}
-.pm-chips{display:flex;flex-wrap:wrap;gap:8px}
+.pm-chips{display:flex;flex-wrap:wrap;gap:8px}.pm-opt+.pm-opt{margin-top:14px}
 .pm-chips button{all:unset;cursor:pointer;border:1.5px solid var(--line);border-radius:10px;padding:8px 14px;font-size:12.5px;font-weight:500;transition:.15s}
 .pm-chips button:hover{border-color:var(--pink)}
 .pm-chips button.on{border-color:var(--pink);background:var(--pink-s);color:var(--pink);font-weight:600}
@@ -414,6 +414,15 @@ function renderRibbon(){
  if(!promos.length)return;
  $('#ribbon').innerHTML=promos.map(m=>`<span>🎉 ${esc(m.title)}${m.discount_pct?' — jusqu\u2019\u00e0 -'+m.discount_pct+'%':''}</span>`).join('');
 }
+const vphotos=(p,v)=>[v.photo_url,...p.variants.filter(x=>x.id!==v.id&&x.variant===v.variant).map(x=>x.photo_url)].filter(Boolean);
+const vphoto=(p,v)=>vphotos(p,v)[0]||p.photo_url||'';
+function pickVar(pid,dim,val){
+ const p=products.find(x=>x.id===pid),cur=window._pmVid&&p.variants.find(x=>x.id===window._pmVid)||p.variants[0];
+ const other=dim==='variant'?'color':'variant';
+ const m=p.variants.filter(x=>x[dim]===val);
+ const best=m.find(x=>x[other]===cur[other]&&x.quantity>0)||m.find(x=>x[other]===cur[other])||m.find(x=>x.quantity>0)||m[0];
+ if(best)openProduct(pid,best.id);
+}
 const vtitle=(p,v)=>p.name+(v&&v.label?' '+v.label:'');
 function combos(){return products.flatMap(p=>p.variants.map(v=>({p,v})))}
 function categories(){return cats.length?cats.map(c=>c.name):[...new Set(products.map(p=>p.category).filter(Boolean))]}
@@ -564,7 +573,7 @@ function priceHTML(p){return p.on_sale&&p.sale_price?`<span class="pr">${dh(p.sa
 function cardHTML(x){
  const inCart=cart[x.v.id]||0;
  return `<div class="prod">${x.p.is_new?'<span class="tag new">Nouveau</span>':(x.p.on_sale?'<span class="tag">Promo</span>':'')}
- <button class="imbtn" onclick="openProduct('${x.p.id}','${x.v.id}')" aria-label="Voir ${esc(x.p.name)}"><div class="im">${(x.v.photo_url||x.p.photo_url)?`<img src="${esc(x.v.photo_url||x.p.photo_url)}" alt="${esc(x.p.name)}">`:'📦'}</div></button>
+ <button class="imbtn" onclick="openProduct('${x.p.id}','${x.v.id}')" aria-label="Voir ${esc(x.p.name)}"><div class="im">${vphoto(x.p,x.v)?`<img src="${esc(vphoto(x.p,x.v))}" alt="${esc(x.p.name)}">`:'📦'}</div></button>
  <span class="br">${esc(x.p.brand||x.p.category||'Ola Bébé')}</span>
  <h3><a href="#" onclick="openProduct('${x.p.id}','${x.v.id}');return false" style="color:inherit">${x.v.label?esc(vtitle(x.p,x.v)):esc(x.p.name)+(x.v.variant!=='Standard'?' — '+esc(x.v.variant):'')+(x.v.color&&x.v.color!=='Standard'?' '+esc(x.v.color):'')}</a></h3>
  <div>${priceHTML(x.p)}${stBadge(x)}</div>
@@ -573,8 +582,8 @@ function cardHTML(x){
 }
 function openProduct(pid,vid){
  const p=products.find(x=>x.id===pid);if(!p)return;
- const v=p.variants.find(x=>x.id===vid)||p.variants[0];
- const imgs=[...new Set([v.photo_url,p.photo_url,...(p.product_images||[]).map(i=>i.image_url)].filter(Boolean))];
+ const v=p.variants.find(x=>x.id===vid)||p.variants[0];window._pmVid=v.id;
+ const imgs=[...new Set([...vphotos(p,v),p.photo_url,...(p.product_images||[]).map(i=>i.image_url)].filter(Boolean))];
  const m=$('#pmodal'),first=!m.classList.contains('open');
  let active=!first&&window._pmState&&window._pmState.pid===pid?Math.min(window._pmState.active,Math.max(0,imgs.length-1)):0;
  const vlabel=x=>[x.variant!=='Standard'?x.variant:'',x.color&&x.color!=='Standard'?x.color:''].filter(Boolean).join(' · ');
@@ -600,7 +609,7 @@ function openProduct(pid,vid){
     <h2>${esc(vtitle(p,v))}</h2>
     <div class="pm-price"><b>${dh(price)}</b>${pct?`<s>${dh(p.price)}</s><span class="pm-save">Économisez ${dh(p.price-price)}</span>`:''}</div>
     <span class="pm-stock ${st[1]}">● ${st[0]}</span>
-    ${p.variants.length>1?`<div class="pm-opt"><span>Choisissez :</span><div class="pm-chips">${p.variants.map(x=>`<button class="${x.id===v.id?'on':''}${x.quantity<=0?' off':''}" onclick="openProduct('${pid}','${x.id}')">${esc(vlabel(x)||'Standard')}</button>`).join('')}</div></div>`:(vlabel(v)?`<p class="pm-var">${esc(vlabel(v))}</p>`:'')}
+    ${p.variants.length>1?[['variant','Taille'],['color','Couleur']].map(([dim,lbl])=>{const vals=[...new Set(p.variants.map(x=>x[dim]))];return vals.length>1?`<div class="pm-opt"><span>${lbl} :</span><div class="pm-chips">${vals.map(val=>`<button class="${v[dim]===val?'on':''}${p.variants.filter(x=>x[dim]===val).every(x=>x.quantity<=0)?' off':''}" onclick="pickVar('${pid}','${dim}',this.dataset.v)" data-v="${esc(val)}">${esc(val)}</button>`).join('')}</div></div>`:''}).join(''):(vlabel(v)?`<p class="pm-var">${esc(vlabel(v))}</p>`:'')}
     <div class="pm-buy">${v.quantity<=0?'<button class="pm-add" disabled>Indisponible pour le moment</button>':inCart?`<div class="pm-qty"><button aria-label="Retirer un" onclick="changeQty('${v.id}',-1);openProduct('${pid}','${v.id}')">−</button><b>${inCart}</b><button aria-label="Ajouter un" onclick="changeQty('${v.id}',1);openProduct('${pid}','${v.id}')">+</button></div><button class="pm-add" onclick="closeProduct();openCart()">Voir mon panier →</button>`:`<button class="pm-add" onclick="addToCart('${v.id}');openProduct('${pid}','${v.id}')">🛒 Ajouter au panier</button>`}</div>
     <a class="pm-wa" data-wa data-msg="Bonjour, j'ai une question sur : ${esc(p.name)}" href="#" target="_blank" rel="noopener">💬 Une question ? Écrivez-nous sur WhatsApp</a>
     <ul class="pm-perks"><li>🚚 Livraison rapide partout au Maroc</li><li>💳 Paiement cash ou carte à la livraison</li></ul>

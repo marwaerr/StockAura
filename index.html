@@ -284,6 +284,12 @@ footer .fc a,footer .fc span{display:flex;gap:6px;align-items:flex-start}
 .pmodal .pm-desc h4{margin:0 0 6px;font:600 13px Poppins,sans-serif;color:var(--ink)}
 @media(min-width:701px){.pmodal .pm-media>:first-child{margin-top:auto}.pmodal .pm-media>:last-child{margin-bottom:auto}.pmodal .pm-thumbs{justify-content:center}}
 </style>
+<style id="antiCopy">
+body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+input,textarea,select,[contenteditable]{-webkit-user-select:text;user-select:text}
+img{-webkit-user-drag:none;user-drag:none;-webkit-touch-callout:none;user-select:none}
+@media print{body{display:none!important}}
+</style>
 </head>
 <body>
 <div class="top"><div class="w" id="ribbon"><span>🚚 Livraison rapide partout au Maroc</span><span>Une question ? Contactez-nous</span></div></div>
@@ -676,6 +682,22 @@ async function submitOrder(){
  cart={};closeCart();updateFab();renderGrid();renderNew();renderPromo();toast('Commande envoyée 🎉 Nous vous contactons bientôt.');
 }
 boot();
+</script>
+<script>
+/* Protection anti copier-coller / enregistrement d'images (dissuasive : aucun site web ne peut l'empêcher à 100 %) */
+(function(){
+ const editable=t=>t&&t.closest&&t.closest('input,textarea,select,[contenteditable]');
+ const stop=e=>{if(!editable(e.target))e.preventDefault()};
+ ['contextmenu','copy','cut','dragstart','selectstart'].forEach(ev=>document.addEventListener(ev,stop,true));
+ document.addEventListener('keydown',e=>{
+  const k=(e.key||'').toLowerCase(),c=e.ctrlKey||e.metaKey;
+  if(k==='f12'||(c&&e.shiftKey&&['i','j','c','k'].includes(k))||(c&&['u','s','p'].includes(k))||(c&&['c','x','a'].includes(k)&&!editable(e.target)))e.preventDefault();
+ },true);
+ /* Images : non glissables, non ouvrables dans un nouvel onglet par appui long */
+ const lock=r=>(r.querySelectorAll?r.querySelectorAll('img'):[]).forEach(i=>{i.draggable=false;i.setAttribute('oncontextmenu','return false')});
+ lock(document);
+ new MutationObserver(m=>m.forEach(x=>x.addedNodes.forEach(n=>{if(n.nodeType===1){if(n.tagName==='IMG'){n.draggable=false}else lock(n)}}))).observe(document.documentElement,{childList:true,subtree:true});
+})();
 </script>
 </body>
 </html>

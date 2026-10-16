@@ -292,7 +292,7 @@ img{-webkit-user-drag:none;user-drag:none;-webkit-touch-callout:none;user-select
 </style>
 </head>
 <body>
-<div class="top"><div class="w" id="ribbon"><span>🚚 Livraison rapide partout au Maroc</span><span>🎁 Emballage cadeau offert</span><span class="hm">Une question ? Contactez-nous</span></div></div>
+<div class="top"><div class="w" id="ribbon"><span>🚚 Livraison rapide partout au Maroc</span><span>🎁 Emballage cadeau gratuit sur demande</span><span class="hm">Une question ? Contactez-nous</span></div></div>
 <header><div class="w nav">
  <a class="brand" href="#"><img src="logo.png" alt="Ola Bébé"><span>Ola Bébé</span></a>
  <nav class="gnav"><a href="#new">Nouveautés</a><a href="#promo">Promo</a><a href="#brands">Marques</a></nav>
@@ -323,7 +323,7 @@ img{-webkit-user-drag:none;user-drag:none;-webkit-touch-callout:none;user-select
  <div><i style="background:var(--teal-m)">🚚</i><span><b>Livraison rapide</b>Partout au Maroc</span></div>
  <div><i style="background:var(--yel)">💬</i><span><b>Service conseil</b>Réponse rapide à vos questions</span></div>
  <div><i style="background:var(--lav)">🏷️</i><span><b>Bons prix</b>Une sélection soignée</span></div>
- <div><i style="background:var(--pink-s)">🎁</i><span><b>Emballage cadeau</b>Offert sur toutes les commandes</span></div>
+ <div><i style="background:var(--pink-s)">🎁</i><span><b>Emballage cadeau</b>Gratuit, sur simple demande</span></div>
 </div>
 <section class="sec" id="stats" style="padding-top:0"><div class="w"><div id="statgrid" class="stats"></div></div></section>
 <section class="sec" id="new"><div class="w"><h2 class="t">Nouveautés</h2><div id="newgrid"></div></div></section>
@@ -419,7 +419,7 @@ function renderShipBanner(msg){
 }
 function renderRibbon(){
  if(!promos.length)return;
- $('#ribbon').innerHTML=promos.map(m=>`<span>🎉 ${esc(m.title)}${m.discount_pct?' — jusqu\u2019\u00e0 -'+m.discount_pct+'%':''}</span>`).join('')+'<span>🎁 Emballage cadeau offert</span>';
+ $('#ribbon').innerHTML=promos.map(m=>`<span>🎉 ${esc(m.title)}${m.discount_pct?' — jusqu\u2019\u00e0 -'+m.discount_pct+'%':''}</span>`).join('')+'<span>🎁 Emballage cadeau gratuit sur demande</span>';
 }
 const vphotos=(p,v)=>[v.photo_url,...p.variants.filter(x=>x.id!==v.id&&x.variant===v.variant).map(x=>x.photo_url)].filter(Boolean);
 const vphoto=(p,v)=>vphotos(p,v)[0]||p.photo_url||'';
@@ -619,7 +619,7 @@ function openProduct(pid,vid){
     ${p.variants.length>1?[['variant','Taille'],['color','Couleur']].map(([dim,lbl])=>{const vals=[...new Set(p.variants.map(x=>x[dim]))];return vals.length>1?`<div class="pm-opt"><span>${lbl} :</span><div class="pm-chips">${vals.map(val=>`<button class="${v[dim]===val?'on':''}${p.variants.filter(x=>x[dim]===val).every(x=>x.quantity<=0)?' off':''}" onclick="pickVar('${pid}','${dim}',this.dataset.v)" data-v="${esc(val)}">${esc(val)}</button>`).join('')}</div></div>`:''}).join(''):(vlabel(v)?`<p class="pm-var">${esc(vlabel(v))}</p>`:'')}
     <div class="pm-buy">${v.quantity<=0?'<button class="pm-add" disabled>Indisponible pour le moment</button>':inCart?`<div class="pm-qty"><button aria-label="Retirer un" onclick="changeQty('${v.id}',-1);openProduct('${pid}','${v.id}')">−</button><b>${inCart}</b><button aria-label="Ajouter un" onclick="changeQty('${v.id}',1);openProduct('${pid}','${v.id}')">+</button></div><button class="pm-add" onclick="closeProduct();openCart()">Voir mon panier →</button>`:`<button class="pm-add" onclick="addToCart('${v.id}');openProduct('${pid}','${v.id}')">🛒 Ajouter au panier</button>`}</div>
     <a class="pm-wa" data-wa data-msg="Bonjour, j'ai une question sur : ${esc(p.name)}" href="#" target="_blank" rel="noopener">💬 Une question ? Écrivez-nous sur WhatsApp</a>
-    <ul class="pm-perks"><li>🚚 Livraison rapide partout au Maroc</li><li>💳 Paiement cash ou carte à la livraison</li><li>🎁 Emballage cadeau offert sur toutes vos commandes</li></ul>
+    <ul class="pm-perks"><li>🚚 Livraison rapide partout au Maroc</li><li>💳 Paiement cash ou carte à la livraison</li><li>🎁 Emballage cadeau gratuit : à cocher dans votre panier</li></ul>
     ${p.description?`<div class="pm-desc"><h4>Description</h4>${esc(p.description)}</div>`:''}
    </div></div>`;
   anim=false;
@@ -659,13 +659,20 @@ function shipProgressHTML(){
 function emptyCartHTML(){
  return `<div class="cart-empty"><img src="cart-empty.png" alt=""><b>Votre panier est encore vide</b><p>Craquez pour nos nouveautés et nos promos du moment !</p><button class="btn" onclick="closeCart();document.getElementById('prods').scrollIntoView({behavior:'smooth'})">Découvrez nos produits</button></div>`;
 }
+let giftWrap=false,giftMsg='';
+function toggleGift(on){
+ const ids=['cn','cp','ca','cnote'],vals=ids.map(i=>($('#'+i)||{}).value||'');
+ giftWrap=on;renderCart();
+ ids.forEach((i,k)=>{const el=$('#'+i);if(el)el.value=vals[k]});
+}
 function renderCart(){
  const lines=cartLines();
  $('#drawer').innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"><h2 style="margin:0;font-size:18px">Votre panier</h2><button class="btn o" style="padding:6px 14px" onclick="closeCart()">✕</button></div>
  ${lines.length?shipProgressHTML():''}
  ${lines.length?lines.map(l=>`<div class="citem"><div><b>${esc(vtitle(l.p,l.v))}</b><br><span style="color:var(--mute)">${esc(l.v.variant)}${l.v.color&&l.v.color!=='Standard'?' · '+esc(l.v.color):''}</span></div><div style="display:flex;align-items:center;gap:6px"><button class="qtybtn" onclick="changeQty('${l.v.id}',-1)">−</button>${l.q}<button class="qtybtn" onclick="changeQty('${l.v.id}',1)">+</button></div></div>`).join(''):emptyCartHTML()}
  ${lines.length?`<div class="total" style="margin:16px 0 8px">Total : ${dh(cartTotal())}</div>
- <div style="background:var(--pink-s);color:var(--pink);border-radius:12px;padding:10px 14px;font-size:12.5px;font-weight:600;margin-bottom:14px">🎁 Emballage cadeau offert sur toutes vos commandes</div>
+ <label style="display:flex;gap:10px;align-items:center;background:var(--pink-s);color:var(--pink);border-radius:12px;padding:10px 14px;font-size:12.5px;font-weight:600;margin-bottom:${giftWrap?'8px':'14px'};cursor:pointer"><input type="checkbox" id="cgift" ${giftWrap?'checked':''} style="width:auto;min-height:auto;margin:0" onchange="toggleGift(this.checked)">🎁 Emballage cadeau (gratuit)</label>
+ ${giftWrap?`<input id="cgiftmsg" placeholder="Petit mot pour la carte (facultatif)" value="${esc(giftMsg)}" oninput="giftMsg=this.value" style="margin-bottom:14px">`:''}
  <label for="cn">Nom</label><input id="cn">
  <label for="cp">Téléphone</label><input id="cp">
  <label for="ca">Adresse (facultatif)</label><input id="ca">
@@ -679,9 +686,9 @@ async function submitOrder(){
  if(!phone){toast('Indiquez votre téléphone');return}
  if(!isValidPhone(phone)){toast('Numéro de téléphone invalide (ex. 06XXXXXXXX)');return}
  const items=cartLines().map(l=>({variant_id:l.v.id,qty:l.q,price:l.p.on_sale&&l.p.sale_price?l.p.sale_price:l.p.price}));
- const{error}=await sb.rpc('record_order',{p_customer_name:name,p_phone:phone,p_address:$('#ca').value.trim()||null,p_note:$('#cnote').value.trim()||null,p_items:items});
+ const{error}=await sb.rpc('record_order',{p_customer_name:name,p_phone:phone,p_address:$('#ca').value.trim()||null,p_note:[giftWrap?'🎁 EMBALLAGE CADEAU'+(giftMsg.trim()?' — mot : « '+giftMsg.trim()+' »':''):'',$('#cnote').value.trim()].filter(Boolean).join(' | ')||null,p_items:items});
  if(error){toast(error.message);return}
- cart={};closeCart();updateFab();renderGrid();renderNew();renderPromo();toast('Commande envoyée 🎉 Emballage cadeau offert ! Nous vous contactons bientôt.');
+ const wasGift=giftWrap;giftWrap=false;giftMsg='';cart={};closeCart();updateFab();renderGrid();renderNew();renderPromo();toast(wasGift?'Commande envoyée 🎉 Emballage cadeau gratuit noté ! Nous vous contactons bientôt.':'Commande envoyée 🎉 Nous vous contactons bientôt.');
 }
 boot();
 </script>

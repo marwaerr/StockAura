@@ -288,7 +288,29 @@ function cbPreview(){
  const sq=$('#pqwrap');if(sq)sq.style.display=multi?'none':'';
  $('#cbx').innerHTML=multi?'<p class="hint" style="margin:8px 0 10px">Plusieurs tailles/couleurs : saisissez la quantité (et le code-barres si besoin) de chacune.</p>'+V.flatMap(v=>C.map(c=>`<div class="scan"><span class="cl">${esc(v)} · ${esc(c)}</span><input class="cbn" id="cbn_${esc(v)}_${esc(c)}" data-v="${esc(v)}" data-c="${esc(c)}" placeholder="Code-barres (facultatif)"><input class="cbq" id="cbq_${esc(v)}_${esc(c)}" data-v="${esc(v)}" data-c="${esc(c)}" type="number" min="0" placeholder="Qté" style="width:90px;flex:none"><input class="cbl" id="cbl_${esc(v)}_${esc(c)}" data-v="${esc(v)}" data-c="${esc(c)}" placeholder="Libellé site (ex : Rose 0-6 mois)" style="min-width:170px"><input class="cbp" id="cbp_${esc(v)}_${esc(c)}" data-v="${esc(v)}" data-c="${esc(c)}" type="file" accept="image/*" title="Photo de cette déclinaison" style="max-width:200px"></div>`)).join(''):'';
 }
+/* Filigrane "Ola Bébé" ajouté automatiquement sur chaque photo produit envoyée */
+let _wmLogo=null;
+function loadWmLogo(){return _wmLogo||(_wmLogo=new Promise(r=>{const i=new Image();i.onload=()=>r(i);i.onerror=()=>r(null);i.src='logo.png'}))}
+async function watermark(file){
+ try{
+  if(!file||!/^image\/(jpeg|png|webp)/.test(file.type))return file;
+  const bmp=await createImageBitmap(file),MAX=1600,k=Math.min(1,MAX/Math.max(bmp.width,bmp.height));
+  const w=Math.round(bmp.width*k),h=Math.round(bmp.height*k),cv=document.createElement('canvas');cv.width=w;cv.height=h;
+  const g=cv.getContext('2d');g.drawImage(bmp,0,0,w,h);
+  const logo=await loadWmLogo(),m=Math.min(w,h),lw=m*0.26,lh=logo?lw*logo.height/logo.width:lw*0.3,sx=lw*1.7,sy=lh*2.6;
+  g.save();g.translate(w/2,h/2);g.rotate(-Math.PI/7);g.globalAlpha=0.22;
+  const R=Math.hypot(w,h)/2;
+  for(let y=-R,row=0;y<R;y+=sy,row++)for(let x=-R+(row%2?sx/2:0);x<R;x+=sx){
+   if(logo)g.drawImage(logo,x,y,lw,lh);
+   else{g.font=`700 ${lw*0.3}px sans-serif`;g.fillStyle='#fff';g.strokeStyle='#000';g.lineWidth=2;g.strokeText('Ola Bébé',x,y);g.fillText('Ola Bébé',x,y)}
+  }
+  g.restore();
+  const blob=await new Promise(r=>cv.toBlob(r,'image/jpeg',0.9));
+  return blob?new File([blob],(file.name.replace(/\.[^.]+$/,'')||'photo')+'.jpg',{type:'image/jpeg'}):file;
+ }catch(e){return file}
+}
 async function uploadVariantPhoto(file,variantId){
+ file=await watermark(file);
  const ext=(file.name.split('.').pop()||'jpg').toLowerCase(),path=`variants/${variantId}-${Date.now()}.${ext}`;
  const{error}=await sb.storage.from('product-photos').upload(path,file,{upsert:true,cacheControl:'3600'});
  if(error){toast('Photo de déclinaison non envoyée : '+error.message);return null}
@@ -320,6 +342,7 @@ function brandOptions(id){return`<select id="${id}"><option value="">— Choisir
 let newPhotoFile=null;
 function pickPhotoFile(inp){newPhotoFile=inp.files[0]||null;const r=$('#pphp');if(newPhotoFile){const rd=new FileReader();rd.onload=()=>r.innerHTML=`<img class="th" src="${rd.result}" alt="">`;rd.readAsDataURL(newPhotoFile)}else r.innerHTML=''}
 async function uploadPhoto(file,productId){
+ file=await watermark(file);
  const ext=(file.name.split('.').pop()||'jpg').toLowerCase(),path=`${productId}.${ext}`;
  const{error}=await sb.storage.from('product-photos').upload(path,file,{upsert:true,cacheControl:'3600'});
  if(error){toast('Photo non envoyée : '+error.message);return null}
@@ -498,6 +521,7 @@ async function addVariant(pid){
  clearDrafts();toast('Déclinaison ajoutée 🎉');await refresh()
 }
 async function uploadGalleryPhoto(file,productId){
+ file=await watermark(file);
  const ext=(file.name.split('.').pop()||'jpg').toLowerCase(),path=`${productId}/${Date.now()}-${Math.random().toString(36).slice(2,7)}.${ext}`;
  const{error}=await sb.storage.from('product-photos').upload(path,file,{upsert:true,cacheControl:'3600'});
  if(error){toast('Photo non envoyée : '+error.message);return null}
@@ -785,7 +809,7 @@ async function ordersTab(){
   <div><b>${esc(o.customer_name)}</b> · ${esc(o.phone)}${o.address?' · '+esc(o.address):''}<br><span class="hint">${fd((o.created_at||'').slice(0,10))}</span></div>
   <select onchange="setOrderStatus('${o.id}',this.value)">${Object.entries(STLBL).map(([k,l])=>`<option value="${k}" ${o.status===k?'selected':''}>${l}</option>`).join('')}</select></div>
   <div class="panel scroll"><table><tr><th>Article</th><th class="n">Qté</th><th class="n">Prix</th></tr>${its.map(i=>`<tr><td>${esc(products.find(p=>p.id===i.variants?.product_id)?.name||'(produit supprimé)')} · ${esc(i.variants?.variant||'')} · ${esc(i.variants?.color||'')}</td><td class="n">${i.qty}</td><td class="n">${dh(i.unit_price*i.qty)}</td></tr>`).join('')}</table></div>
-  <div class="row" style="justify-content:space-between;align-items:center;margin:8px 0 0"><div class="total" style="margin:0">Total : ${dh(o.total)}</div>${isAdmin()?`<button class="btn ghost" style="color:var(--bad)" onclick="delOrder('${o.id}')">🗑 Supprimer</button>`:''}</div>${o.note?`<p class="hint">Note : ${esc(o.note)}</p>`:''}</div>`;
+  <div class="row" style="justify-content:space-between;align-items:center;margin:8px 0 0"><div class="total" style="margin:0">Total : ${dh(o.total)}</div>${isAdmin()?`<button class="btn ghost" style="color:var(--bad)" onclick="delOrder('${o.id}')">🗑 Supprimer</button>`:''}</div>${o.note?(o.note.includes('🎁 EMBALLAGE CADEAU')?`<p style="background:var(--pink-s,#fdecef);color:var(--pink,#f15d7d);border-radius:10px;padding:8px 12px;font-weight:700;margin:8px 0 0">${esc(o.note)}</p>`:`<p class="hint">Note : ${esc(o.note)}</p>`):''}</div>`;
  }).join('');
 }
 async function delOrder(id){

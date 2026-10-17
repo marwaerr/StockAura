@@ -5,7 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Ola Bébé — Boutique</title>
 <link rel="icon" type="image/png" href="logo.png">
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://lldexxszkxnufiysppdg.supabase.co" crossorigin>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preload" as="image" href="hero-baby.jpg">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Poppins:wght@400;500;600&display=swap" media="print" onload="this.media='all'">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Poppins:wght@400;500;600&display=swap"></noscript>
 <style>
 :root{color-scheme:light;--bg:#fffdfc;--card:#fff;--ink:#2f2b33;--mute:#645f6a;--pink:#f15d7d;--pink-s:#fdecef;--pink-m:#ffc2cf;--teal:#5bb5a2;--teal-s:#e9f5f3;--teal-m:#c4ebe5;--yel:#fdeab8;--lav:#e9e0f7;--line:#f0e6e6;--hero:#f8f6f7;--nl:#f1f7f7;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 html{scroll-padding-top:120px}*{box-sizing:border-box}
@@ -336,7 +341,7 @@ img{-webkit-user-drag:none;user-drag:none;-webkit-touch-callout:none;user-select
  var el=document.getElementById('shipbanner');
  var e=m.replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]});
  el.dataset.msg=m;el.style.display='';
- el.innerHTML='<img src="ship-baby.png" alt=""><div class="ship-track"><div class="ship-move">'+Array(7).join('<b>'+e+'</b>')+'</div></div>';
+ el.innerHTML='<img src="ship-baby.webp" alt=""><div class="ship-track"><div class="ship-move">'+Array(7).join('<b>'+e+'</b>')+'</div></div>';
  var mv=el.querySelector('.ship-move');mv.style.animationDuration=(mv.scrollWidth/2/25)+'s';
 }catch(x){}})();
 </script>
@@ -381,8 +386,6 @@ img{-webkit-user-drag:none;user-drag:none;-webkit-touch-callout:none;user-select
 <div class="cartdrawer" id="drawer"></div>
 <div id="toast" role="status"></div>
 <a class="wa" data-wa data-msg="Bonjour Ola Bébé !" href="https://wa.me/212660704987?text=Bonjour%20Ola%20B%C3%A9b%C3%A9%20!" target="_blank" rel="noopener" aria-label="Discuter avec nous sur WhatsApp" title="Discuter sur WhatsApp"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.2a8.8 8.8 0 0 0-7.6 13.2L3.2 20.8l4.5-1.2A8.8 8.8 0 1 0 12 3.2z" fill="none" stroke="#fff" stroke-width="1.7" stroke-linejoin="round"/><path d="M9.2 7.9c.2-.4.5-.5.8-.5h.5c.2 0 .4.1.5.4l.7 1.7c.1.2 0 .4-.1.6l-.5.6c-.1.1-.1.3 0 .5.6 1.1 1.5 2 2.6 2.6.2.1.4.1.5-.1l.6-.6c.2-.2.4-.2.6-.1l1.7.7c.2.1.4.3.4.5v.5c0 .3-.1.6-.5.9-.5.4-1.5.7-2.8.2-1.8-.7-3.5-2.4-4.3-4.2-.5-1.2-.3-2.3 0-2.7z" fill="#fff"/></svg></a>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-<script src="supabase-config.js"></script>
 <script>
 const $=s=>document.querySelector(s);
 const esc=t=>String(t??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -409,18 +412,15 @@ function applyPhone(raw){
 try{const cp=localStorage.getItem('ola_phone');if(cp)applyPhone(cp)}catch(e){}
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2400)}
 
-async function boot(){
- const [{data:p,error:e1},{data:pr},{data:rv},{data:ct},{data:br},{data:dp},{data:ss},{data:sc}]=await Promise.all([
-  sb.from('products').select('id,name,price,photo_url,low_threshold,category,subcategory,brand,is_new,on_sale,sale_price,description,product_images(id,image_url),variants(id,variant,color,quantity,photo_url,label)').eq('visible',true).order('created_at'),
-  sb.from('promotions').select('*, promotion_products(product_id)').eq('active',true).order('sort'),
-  sb.from('reviews').select('*').eq('approved',true).order('created_at',{ascending:false}).limit(12),
-  sb.from('categories').select('*').order('sort').order('name'),
-  sb.from('brands').select('*').order('name'),
-  sb.from('departments').select('*').order('sort').order('name'),
-  sb.from('site_settings').select('*').in('key',['shipping_message','shipping_threshold','stats','phone']),
-  sb.from('subcategories').select('*').order('name')
- ]);
- if(e1)toast(e1.message);
+const SB_URL='https://lldexxszkxnufiysppdg.supabase.co',SB_KEY='sb_publishable_b8tncza_NHFvdjlnwTG8wA_SUMIM4mT';
+const SB_H={apikey:SB_KEY,Authorization:'Bearer '+SB_KEY};
+async function rest(path){
+ try{const r=await fetch(SB_URL+'/rest/v1/'+path,{headers:SB_H});const j=await r.json();
+  if(!r.ok)return{data:null,error:j};return{data:j,error:null}}catch(e){return{data:null,error:{message:e.message}}}
+}
+const CACHE_KEY='ola_cache_v2';
+function applyData(d){
+ const [p,pr,rv,ct,br,dp,ss,sc]=d;
  products=p||[];promos=pr||[];reviews=rv||[];cats=ct||[];brandRows=br||[];depts=dp||[];subs=sc||[];
  applyPhone(ss?.find(r=>r.key==='phone')?.value);
  const shipMsg=ss?.find(r=>r.key==='shipping_message')?.value||'';
@@ -428,13 +428,33 @@ async function boot(){
  renderRibbon();renderNew();renderPromo();renderCats();renderBrands();renderGrid();renderReviews();renderMenu();renderShipBanner(shipMsg);
  renderStats(parseStats(ss?.find(r=>r.key==='stats')?.value));
 }
+async function boot(){
+ let cached=false;
+ try{const c=localStorage.getItem(CACHE_KEY);if(c){applyData(JSON.parse(c));cached=true}}catch(e){}
+ const R=await Promise.all([
+  rest('products?select=id,name,price,photo_url,low_threshold,category,subcategory,brand,is_new,on_sale,sale_price,description,product_images(id,image_url),variants(id,variant,color,quantity,photo_url,label)&visible=eq.true&order=created_at'),
+  rest('promotions?select=*,promotion_products(product_id)&active=eq.true&order=sort'),
+  rest('reviews?select=*&approved=eq.true&order=created_at.desc&limit=12'),
+  rest('categories?select=*&order=sort,name'),
+  rest('brands?select=*&order=name'),
+  rest('departments?select=*&order=sort,name'),
+  rest('site_settings?select=*&key=in.(shipping_message,shipping_threshold,stats,phone)'),
+  rest('subcategories?select=*&order=name')
+ ]);
+ if(R[0].error){if(!cached)toast(R[0].error.message||'Erreur de chargement');return}
+ const d=R.map(x=>x.data);
+ const fresh=JSON.stringify(d);
+ try{if(localStorage.getItem(CACHE_KEY)===fresh)return}catch(e){}
+ applyData(d);
+ try{localStorage.setItem(CACHE_KEY,fresh)}catch(e){}
+}
 function renderShipBanner(msg){
  const el=$('#shipbanner');if(!el)return;
  try{msg?localStorage.setItem('ola_ship_msg',msg):localStorage.removeItem('ola_ship_msg')}catch(e){}
  if(!msg){el.style.display='none';el.dataset.msg='';return}
  if(el.dataset.msg===msg){el.style.display='';return} // déjà affiché : on ne relance pas l'animation
  el.dataset.msg=msg;el.style.display='';
- el.innerHTML=`<img src="ship-baby.png" alt=""><div class="ship-track"><div class="ship-move">${`<b>${esc(msg)}</b>`.repeat(6)}</div></div>`;
+ el.innerHTML=`<img src="ship-baby.webp" alt=""><div class="ship-track"><div class="ship-move">${`<b>${esc(msg)}</b>`.repeat(6)}</div></div>`;
  const mv=el.querySelector('.ship-move');
  const SPEED=25; // pixels par seconde : plus petit = plus lent
  mv.style.animationDuration=(mv.scrollWidth/2/SPEED)+'s';
@@ -605,6 +625,8 @@ function filterBar(n){
  const txt=activeQuery?`Résultats pour « <b>${esc(activeQuery)}</b> »`:(activeBrand?`Marque : <b>${esc(activeBrand)}</b>`:'');
  return txt?`<div class="fbar"><span>${txt} — ${n} produit${n>1?'s':''}</span><button onclick="clearFilters()">✕ Voir tous les produits</button></div>`:'';
 }
+let gridLimit=12,gridSig='';
+function moreProducts(){gridLimit+=12;renderGrid()}
 function renderGrid(){
  let list=combos();
  if(activeQuery)list=list.filter(x=>searchMatch(x.p,activeQuery));
@@ -613,7 +635,8 @@ function renderGrid(){
  if(activeCat)list=list.filter(x=>x.p.category===activeCat);
  if(activeSub)list=list.filter(x=>x.p.subcategory===activeSub);
  if(activeBrand)list=list.filter(x=>x.p.brand===activeBrand);
- $('#grid').innerHTML=filterBar(new Set(list.map(x=>x.p.id)).size)+(list.length?`<div class="prods">${list.map(cardHTML).join('')}</div>`:`<div class="panel empty">${activeQuery?'Aucun produit ne correspond à votre recherche.':'Aucun produit disponible pour le moment.'}</div>`);
+ {const sig=[activeQuery,activeBrand,activeCat,activeSub,activeDept,activePromoProducts&&activePromoProducts.join()].join('|');if(sig!==gridSig){gridSig=sig;gridLimit=12}}
+ $('#grid').innerHTML=filterBar(new Set(list.map(x=>x.p.id)).size)+(list.length?`<div class="prods">${list.slice(0,gridLimit).map(cardHTML).join('')}</div>${list.length>gridLimit?`<div style="text-align:center;margin:18px 0"><button class="btn o" onclick="moreProducts()">Voir plus de produits (${list.length-gridLimit})</button></div>`:''}`:`<div class="panel empty">${activeQuery?'Aucun produit ne correspond à votre recherche.':'Aucun produit disponible pour le moment.'}</div>`);
 }
 function renderNew(){
  const list=combos().filter(x=>x.p.is_new);
@@ -640,7 +663,7 @@ function priceHTML(p){return p.on_sale&&p.sale_price?`<span class="pr">${dh(p.sa
 function cardHTML(x){
  const inCart=cart[x.v.id]||0;
  return `<div class="prod">${x.p.is_new?'<span class="tag new">Nouveau</span>':(x.p.on_sale?'<span class="tag">Promo</span>':'')}
- <button class="imbtn" onclick="openProduct('${x.p.id}','${x.v.id}')" aria-label="Voir ${esc(x.p.name)}"><div class="im">${vphoto(x.p,x.v)?`<img src="${esc(vphoto(x.p,x.v))}" alt="${esc(x.p.name)}">`:'📦'}</div></button>
+ <button class="imbtn" onclick="openProduct('${x.p.id}','${x.v.id}')" aria-label="Voir ${esc(x.p.name)}"><div class="im">${vphoto(x.p,x.v)?`<img loading="lazy" decoding="async" src="${esc(vphoto(x.p,x.v))}" alt="${esc(x.p.name)}">`:'📦'}</div></button>
  ${x.p.brand?`<button class="br brl" data-b="${esc(x.p.brand)}" onclick="openBrand(this.dataset.b)" title="Voir tous les produits ${esc(x.p.brand)}">${esc(x.p.brand)}</button>`:`<span class="br">${esc(x.p.category||'Ola Bébé')}</span>`}
  <h3><a href="#" onclick="openProduct('${x.p.id}','${x.v.id}');return false" style="color:inherit">${x.v.label?esc(vtitle(x.p,x.v)):esc(x.p.name)+(x.v.variant!=='Standard'?' — '+esc(x.v.variant):'')+(x.v.color&&x.v.color!=='Standard'?' '+esc(x.v.color):'')}</a></h3>
  <div>${priceHTML(x.p)}${stBadge(x)}</div>
@@ -668,7 +691,7 @@ function openProduct(pid,vid){
      ${imgs.length?`<img src="${esc(imgs[active])}" alt="${esc(p.name)}">`:'<span class="pm-noimg">📦</span>'}
      ${imgs.length>1?`<button class="pm-nav prev" aria-label="Photo précédente" onclick="window._pmActive(${(active-1+imgs.length)%imgs.length})">‹</button><button class="pm-nav next" aria-label="Photo suivante" onclick="window._pmActive(${(active+1)%imgs.length})">›</button>`:''}
     </div>
-    ${imgs.length>1?`<div class="pm-thumbs">${imgs.map((im,i)=>`<button class="${i===active?'on':''}" onclick="window._pmActive(${i})" aria-label="Photo ${i+1}"><img src="${esc(im)}" alt=""></button>`).join('')}</div>`:''}
+    ${imgs.length>1?`<div class="pm-thumbs">${imgs.map((im,i)=>`<button class="${i===active?'on':''}" onclick="window._pmActive(${i})" aria-label="Photo ${i+1}"><img loading="lazy" decoding="async" src="${esc(im)}" alt=""></button>`).join('')}</div>`:''}
    </div>
    <div class="pm-info">
     ${crumbs.length?`<div class="pm-crumbs">${crumbs.map(esc).join(' <span>›</span> ')}</div>`:''}
@@ -698,7 +721,7 @@ function renderReviews(){
 async function submitReview(){
  const name=$('#rn').value.trim();
  if(!name){toast('Indiquez votre nom');return}
- const{error}=await sb.from('reviews').insert({customer_name:name,rating:parseInt($('#rr').value),comment:$('#rc').value.trim()||null});
+ let error=null;try{const r=await fetch(SB_URL+'/rest/v1/reviews',{method:'POST',headers:{...SB_H,'Content-Type':'application/json',Prefer:'return=minimal'},body:JSON.stringify({customer_name:name,rating:parseInt($('#rr').value),comment:$('#rc').value.trim()||null})});if(!r.ok)error=await r.json()}catch(e){error={message:e.message}}
  if(error){toast(error.message);return}
  $('#rn').value='';$('#rc').value='';toast('Merci pour votre avis 🎉 Il sera visible après vérification.');
 }
@@ -717,7 +740,7 @@ function shipProgressHTML(){
  return `<div class="shipprog"><div class="bar"><div class="fill" style="width:${pct}%"></div></div><span>Plus que <b>${dh(left)}</b> pour la livraison gratuite !</span></div>`;
 }
 function emptyCartHTML(){
- return `<div class="cart-empty"><img src="cart-empty.png" alt=""><b>Votre panier est encore vide</b><p>Craquez pour nos nouveautés et nos promos du moment !</p><button class="btn" onclick="closeCart();document.getElementById('prods').scrollIntoView({behavior:'smooth'})">Découvrez nos produits</button></div>`;
+ return `<div class="cart-empty"><img src="cart-empty.webp" alt=""><b>Votre panier est encore vide</b><p>Craquez pour nos nouveautés et nos promos du moment !</p><button class="btn" onclick="closeCart();document.getElementById('prods').scrollIntoView({behavior:'smooth'})">Découvrez nos produits</button></div>`;
 }
 let giftWrap=false,giftMsg='';
 function toggleGift(on){
@@ -746,8 +769,8 @@ async function submitOrder(){
  if(!phone){toast('Indiquez votre téléphone');return}
  if(!isValidPhone(phone)){toast('Numéro de téléphone invalide (ex. 06XXXXXXXX)');return}
  const items=cartLines().map(l=>({variant_id:l.v.id,qty:l.q,price:l.p.on_sale&&l.p.sale_price?l.p.sale_price:l.p.price}));
- const{error}=await sb.rpc('record_order',{p_customer_name:name,p_phone:phone,p_address:$('#ca').value.trim()||null,p_note:[giftWrap?'🎁 EMBALLAGE CADEAU'+(giftMsg.trim()?' — mot : « '+giftMsg.trim()+' »':''):'',$('#cnote').value.trim()].filter(Boolean).join(' | ')||null,p_items:items});
- if(error){toast(error.message);return}
+ let error=null;try{const r=await fetch(SB_URL+'/rest/v1/rpc/record_order',{method:'POST',headers:{...SB_H,'Content-Type':'application/json'},body:JSON.stringify({p_customer_name:name,p_phone:phone,p_address:$('#ca').value.trim()||null,p_note:[giftWrap?'🎁 EMBALLAGE CADEAU'+(giftMsg.trim()?' — mot : « '+giftMsg.trim()+' »':''):'',$('#cnote').value.trim()].filter(Boolean).join(' | ')||null,p_items:items})});if(!r.ok)error=await r.json()}catch(e){error={message:e.message}}
+ if(error){toast(error.message||'Erreur');return}
  const wasGift=giftWrap;giftWrap=false;giftMsg='';cart={};closeCart();updateFab();renderGrid();renderNew();renderPromo();toast(wasGift?'Commande envoyée 🎉 Emballage cadeau gratuit noté ! Nous vous contactons bientôt.':'Commande envoyée 🎉 Nous vous contactons bientôt.');
 }
 boot();

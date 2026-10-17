@@ -294,7 +294,7 @@ function loadWmLogo(){return _wmLogo||(_wmLogo=new Promise(r=>{const i=new Image
 async function watermark(file){
  try{
   if(!file||!/^image\/(jpeg|png|webp)/.test(file.type))return file;
-  const bmp=await createImageBitmap(file),MAX=1600,k=Math.min(1,MAX/Math.max(bmp.width,bmp.height));
+  const bmp=await createImageBitmap(file),MAX=1000,k=Math.min(1,MAX/Math.max(bmp.width,bmp.height));
   const w=Math.round(bmp.width*k),h=Math.round(bmp.height*k),cv=document.createElement('canvas');cv.width=w;cv.height=h;
   const g=cv.getContext('2d');g.drawImage(bmp,0,0,w,h);
   const logo=await loadWmLogo(),m=Math.min(w,h),lw=m*0.26,lh=logo?lw*logo.height/logo.width:lw*0.3,sx=lw*1.7,sy=lh*2.6;
@@ -305,7 +305,7 @@ async function watermark(file){
    else{g.font=`700 ${lw*0.3}px sans-serif`;g.fillStyle='#fff';g.strokeStyle='#000';g.lineWidth=2;g.strokeText('Ola Bébé',x,y);g.fillText('Ola Bébé',x,y)}
   }
   g.restore();
-  const blob=await new Promise(r=>cv.toBlob(r,'image/jpeg',0.9));
+  const blob=await new Promise(r=>cv.toBlob(r,'image/jpeg',0.82));
   return blob?new File([blob],(file.name.replace(/\.[^.]+$/,'')||'photo')+'.jpg',{type:'image/jpeg'}):file;
  }catch(e){return file}
 }
@@ -854,6 +854,8 @@ async function generalTab(){
  <label for="shipmsg">Message</label><input id="shipmsg" value="${esc(msg)}" style="margin-bottom:12px" placeholder="Livraison gratuite dès 200 DH d'achat">
  <label for="shipth">Seuil de livraison gratuite (DH, facultatif — active la barre de progression dans le panier)</label><input id="shipth" type="number" min="0" step="any" value="${esc(th)}" style="margin-bottom:12px">
  <button class="btn" onclick="saveShippingMsg()">Enregistrer</button></div>
+ <div class="card"><h2 style="margin-top:0">Optimiser les photos existantes</h2><p class="hint" style="margin:0 0 12px">Réduit les photos produits trop lourdes (max 1000 px) pour que le site se charge plus vite sur téléphone. Les photos restent aux mêmes adresses. À faire une seule fois.</p>
+ <button class="btn" id="optbtn" onclick="optimizePhotos()">Optimiser maintenant</button><p class="hint" id="optlog" style="margin:10px 0 0"></p></div>
  <div class="card"><h2 style="margin-top:0">Chiffres clés</h2><p class="hint" style="margin:0 0 12px">Affichés sur le site sous forme de compteurs (ex. « +450 » et « Produits de qualité »). Videz une ligne pour la masquer.</p>
  ${[0,1,2,3].map(i=>`<div class="grid" style="grid-template-columns:140px 1fr;margin-bottom:10px"><div><label for="stv${i}">Chiffre</label><input id="stv${i}" value="${esc(stats[i]?.value||'')}" placeholder="+450"></div><div><label for="stl${i}">Texte</label><input id="stl${i}" value="${esc(stats[i]?.label||'')}" placeholder="Produits de qualité"></div></div>`).join('')}
  <button class="btn" onclick="saveStats()">Enregistrer les chiffres</button></div>`;
@@ -865,6 +867,34 @@ async function saveStats(){
  const{error}=await sb.from('site_settings').upsert({key:'stats',value:JSON.stringify(list)});
  if(error){toast(error.message);return}
  clearDrafts();toast('Chiffres enregistrés 🎉')
+}
+async function optimizePhotos(){
+ const btn=$('#optbtn'),log=$('#optlog');btn.disabled=true;
+ try{
+  const{data:pr}=await sb.from('products').select('photo_url,product_images(image_url),variants(photo_url)');
+  const urls=new Set();
+  (pr||[]).forEach(p=>{[p.photo_url,...(p.product_images||[]).map(i=>i.image_url),...(p.variants||[]).map(v=>v.photo_url)].forEach(u=>{if(u&&u.includes('/product-photos/'))urls.add(u.split('?')[0])})});
+  const list=[...urls];let done=0,saved=0,changed=0,fail=0;
+  for(const u of list){
+   done++;log.textContent='Traitement '+done+' / '+list.length+'…';
+   try{
+    const r=await fetch(u,{cache:'reload'});if(!r.ok)throw 0;
+    const blob=await r.blob();
+    const bmp=await createImageBitmap(blob),MAX=1000,k=Math.min(1,MAX/Math.max(bmp.width,bmp.height));
+    if(k===1&&blob.size<200*1024)continue;
+    const cv=document.createElement('canvas');cv.width=Math.round(bmp.width*k);cv.height=Math.round(bmp.height*k);
+    cv.getContext('2d').drawImage(bmp,0,0,cv.width,cv.height);
+    const nb=await new Promise(res=>cv.toBlob(res,'image/jpeg',0.82));
+    if(!nb||nb.size>=blob.size)continue;
+    const path=decodeURIComponent(u.split('/product-photos/')[1]);
+    const{error}=await sb.storage.from('product-photos').upload(path,nb,{upsert:true,contentType:'image/jpeg',cacheControl:'3600'});
+    if(error)throw error;
+    saved+=blob.size-nb.size;changed++;
+   }catch(e){fail++}
+  }
+  log.textContent='Terminé ✅ '+changed+' photo(s) allégée(s), '+(saved/1048576).toFixed(1)+' Mo économisés'+(fail?' — '+fail+' ignorée(s) (erreur)':'')+'.';
+ }catch(e){log.textContent='Erreur : '+(e.message||e)}
+ btn.disabled=false;
 }
 async function savePhone(){
  const d=$('#sitephone').value.replace(/\D/g,'');

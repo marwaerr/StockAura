@@ -286,7 +286,7 @@ function cbPreview(){
  const V=parseList($('#pv').value),C=parseList($('#pc').value);
  const multi=V.length*C.length>1;
  const sq=$('#pqwrap');if(sq)sq.style.display=multi?'none':'';
- $('#cbx').innerHTML=multi?'<p class="hint" style="margin:8px 0 10px">Plusieurs tailles/couleurs : saisissez la quantité (et le code-barres si besoin) de chacune.</p>'+V.flatMap(v=>C.map(c=>`<div class="scan"><span class="cl">${esc(v)} · ${esc(c)}</span><input class="cbn" id="cbn_${esc(v)}_${esc(c)}" data-v="${esc(v)}" data-c="${esc(c)}" placeholder="Code-barres (facultatif)"><input class="cbq" id="cbq_${esc(v)}_${esc(c)}" data-v="${esc(v)}" data-c="${esc(c)}" type="number" min="0" placeholder="Qté" style="width:90px;flex:none"><input class="cbl" id="cbl_${esc(v)}_${esc(c)}" data-v="${esc(v)}" data-c="${esc(c)}" placeholder="Libellé site (ex : Rose 0-6 mois)" style="min-width:170px"><input class="cbp" id="cbp_${esc(v)}_${esc(c)}" data-v="${esc(v)}" data-c="${esc(c)}" type="file" accept="image/*" title="Photo de cette déclinaison" style="max-width:200px"></div>`)).join(''):'';
+ $('#cbx').innerHTML=multi?'<p class="hint" style="margin:8px 0 10px">Plusieurs tailles/couleurs : saisissez la quantité (et le code-barres si besoin) de chacune.</p><div class="scan" style="background:var(--pink-s,#fdecef);border-radius:10px;padding:8px 10px;margin-bottom:8px"><b style="font-size:13px">📷 Photo commune</b><input id="cbshared" type="file" accept="image/*" style="max-width:220px"><span class="hint" style="margin:0">Une seule photo pour toutes les lignes cochées ☑ ci-dessous (une photo propre à une ligne passe avant).</span></div>'+V.flatMap(v=>C.map(c=>`<div class="scan"><label style="display:flex;gap:6px;align-items:center;font-weight:400;margin:0;flex:none"><input type="checkbox" class="cbs" id="cbs_${esc(v)}_${esc(c)}" data-v="${esc(v)}" data-c="${esc(c)}" checked style="width:auto;min-height:auto;margin:0" title="Utiliser la photo commune"></label><span class="cl">${esc(v)} · ${esc(c)}</span><input class="cbn" id="cbn_${esc(v)}_${esc(c)}" data-v="${esc(v)}" data-c="${esc(c)}" placeholder="Code-barres (facultatif)"><input class="cbq" id="cbq_${esc(v)}_${esc(c)}" data-v="${esc(v)}" data-c="${esc(c)}" type="number" min="0" placeholder="Qté" style="width:90px;flex:none"><input class="cbl" id="cbl_${esc(v)}_${esc(c)}" data-v="${esc(v)}" data-c="${esc(c)}" placeholder="Libellé site (ex : Rose 0-6 mois)" style="min-width:170px"><input class="cbp" id="cbp_${esc(v)}_${esc(c)}" data-v="${esc(v)}" data-c="${esc(c)}" type="file" accept="image/*" title="Photo de cette déclinaison" style="max-width:200px"></div>`)).join(''):'';
 }
 /* Filigrane "Ola Bébé" ajouté automatiquement sur chaque photo produit envoyée */
 let _wmLogo=null;
@@ -429,7 +429,9 @@ function editForm(id){
  <div class="grid"><div><label for="ecat">Catégorie</label><select id="ecat" onchange="onEditCatChange()">${departments.map(d=>`<optgroup label="${esc(d.name)}">${categories.filter(c=>c.department_id===d.id).map(c=>`<option value="${esc(c.name)}" ${p.category===c.name?'selected':''}>${esc(c.name)}</option>`).join('')}</optgroup>`).join('')}${categories.filter(c=>!c.department_id).map(c=>`<option value="${esc(c.name)}" ${p.category===c.name?'selected':''}>${esc(c.name)}</option>`).join('')}</select></div><div><label for="esub">Sous-catégorie</label><div id="esubwrap">${editSubOptions(p.category,p.subcategory)}</div></div></div>
  <label for="edesc">Description</label><textarea id="edesc" rows="3" style="width:100%;font:inherit;border:1px solid var(--line);border-radius:8px;padding:9px 11px;margin-bottom:12px">${esc(p.description||'')}</textarea>
  <h3 style="margin:6px 0 8px">Déclinaisons (taille / couleur / code-barres / photo / stock)</h3><p class="hint" style="margin:0 0 10px">Modifiez une ligne puis cliquez « Enregistrer » sur cette ligne. Le stock se corrige ici (inventaire) ; pour un réapprovisionnement avec fournisseur, utilisez plutôt Entrées.</p>
- <div class="panel scroll"><table><tr><th>Taille</th><th>Couleur</th><th>${t('barcode')}</th><th>Libellé site</th><th>Photo</th><th class="n">Stock</th><th></th></tr>${p.variants.map(v=>`<tr>
+ <div class="scan" style="background:var(--pink-s,#fdecef);border-radius:10px;padding:8px 10px;margin-bottom:8px"><b style="font-size:13px">📷 Même photo pour plusieurs tailles</b><input id="esharedphoto" type="file" accept="image/*" style="max-width:220px"><button class="btn ghost" onclick="applySharedPhoto('${id}')">Appliquer aux lignes cochées ☑</button></div>
+ <div class="panel scroll"><table><tr><th>☑</th><th>Taille</th><th>Couleur</th><th>${t('barcode')}</th><th>Libellé site</th><th>Photo</th><th class="n">Stock</th><th></th></tr>${p.variants.map(v=>`<tr>
+  <td><input type="checkbox" class="evs" data-id="${v.id}" style="width:auto;min-height:auto"></td>
   <td><input id="evv_${v.id}" value="${esc(v.variant)}" style="min-width:80px"></td>
   <td><input id="evc_${v.id}" value="${esc(v.color)}" style="min-width:80px"></td>
   <td><input id="evb_${v.id}" value="${esc(v.barcode||'')}" placeholder="—" style="min-width:120px"></td>
@@ -502,6 +504,16 @@ async function saveVariant(vid){
  if(error){toast(error.message);return}
  delete fileDrafts['evp_'+vid];toast('Déclinaison mise à jour 🎉');await refresh()
 }
+async function applySharedPhoto(pid){
+ const f=$('#esharedphoto')?.files[0];
+ if(!f){toast('Choisissez d\'abord la photo');return}
+ const ids=[...document.querySelectorAll('.evs:checked')].map(i=>i.dataset.id);
+ if(!ids.length){toast('Cochez au moins une taille dans la colonne ☑');return}
+ const url=await uploadVariantPhoto(f,ids[0]);if(!url)return;
+ const{error}=await sb.from('variants').update({photo_url:url}).in('id',ids);
+ if(error){toast(error.message);return}
+ delete fileDrafts['esharedphoto'];toast('Photo appliquée à '+ids.length+' ligne'+(ids.length>1?'s':'')+' 🎉');await refresh()
+}
 async function deleteVariant(vid,pid){
  const p=products.find(x=>x.id===pid);
  if(p&&p.variants.length<=1){toast('Impossible : un produit doit garder au moins une déclinaison');return}
@@ -547,7 +559,8 @@ async function addProduct(){
   const pInput=[...document.querySelectorAll('.cbp')].find(i=>i.dataset.v===v&&i.dataset.c===c);
   const lInput=[...document.querySelectorAll('.cbl')].find(i=>i.dataset.v===v&&i.dataset.c===c);
   rows.push({variant:v,color:c,barcode:(single?bc:(cbInput?cbInput.value.trim():''))||null,label:(single?$('#plabel').value.trim():(lInput?lInput.value.trim():''))||null});
-  extra.push({v,c,q:parseInt(single?$('#pq').value:(qInput?qInput.value:''))||0,photo:(!single&&pInput&&pInput.files[0])||null});
+  const sInput=[...document.querySelectorAll('.cbs')].find(i=>i.dataset.v===v&&i.dataset.c===c);
+  extra.push({v,c,q:parseInt(single?$('#pq').value:(qInput?qInput.value:''))||0,photo:(!single&&pInput&&pInput.files[0])||null,useShared:!!(sInput&&sInput.checked)});
  }
  // Vérifie les doublons AVANT de créer quoi que ce soit (évite un produit orphelin sans déclinaison)
  const codes=rows.map(r=>r.barcode).filter(Boolean);
@@ -568,9 +581,11 @@ async function addProduct(){
  if(newPhotoFile){const url=await uploadPhoto(newPhotoFile,p.id);if(url)await sb.from('products').update({photo_url:url}).eq('id',p.id);newPhotoFile=null}
  const galleryFiles=[...($('#pgallery').files||[])];
  for(const f of galleryFiles){const url=await uploadGalleryPhoto(f,p.id);if(url)await sb.from('product_images').insert({product_id:p.id,image_url:url})}
+ const sharedFile=(!single&&$('#cbshared')&&$('#cbshared').files[0])||null;let sharedUrl=null;
  for(const vr of (vrows||[])){
   const x=extra.find(e=>e.v===vr.variant&&e.c===vr.color);if(!x)continue;
   if(x.photo){const url=await uploadVariantPhoto(x.photo,vr.id);if(url)await sb.from('variants').update({photo_url:url}).eq('id',vr.id)}
+  else if(x.useShared&&sharedFile){if(!sharedUrl)sharedUrl=await uploadVariantPhoto(sharedFile,vr.id);if(sharedUrl)await sb.from('variants').update({photo_url:sharedUrl}).eq('id',vr.id)}
   if(x.q>0){const{error:e3}=await sb.rpc('record_move',{p_variant_id:vr.id,p_type:'in',p_qty:x.q,p_unit_price:price,p_ref:'Stock initial',p_supplier:null,p_payment:null,p_by:me.id});if(e3)toast('Stock initial non enregistré : '+e3.message)}
  }
  clearDrafts();toast('Produit ajouté 🎉');await refresh()
@@ -809,7 +824,7 @@ async function ordersTab(){
   <div><b>${esc(o.customer_name)}</b> · ${esc(o.phone)}${o.address?' · '+esc(o.address):''}<br><span class="hint">${fd((o.created_at||'').slice(0,10))}</span></div>
   <select onchange="setOrderStatus('${o.id}',this.value)">${Object.entries(STLBL).map(([k,l])=>`<option value="${k}" ${o.status===k?'selected':''}>${l}</option>`).join('')}</select></div>
   <div class="panel scroll"><table><tr><th>Article</th><th class="n">Qté</th><th class="n">Prix</th></tr>${its.map(i=>`<tr><td>${esc(products.find(p=>p.id===i.variants?.product_id)?.name||'(produit supprimé)')} · ${esc(i.variants?.variant||'')} · ${esc(i.variants?.color||'')}</td><td class="n">${i.qty}</td><td class="n">${dh(i.unit_price*i.qty)}</td></tr>`).join('')}</table></div>
-  <div class="row" style="justify-content:space-between;align-items:center;margin:8px 0 0"><div class="total" style="margin:0">Total : ${dh(o.total)}</div>${isAdmin()?`<button class="btn ghost" style="color:var(--bad)" onclick="delOrder('${o.id}')">🗑 Supprimer</button>`:''}</div>${o.note?(o.note.includes('🎁 EMBALLAGE CADEAU')?`<p style="background:var(--pink-s,#fdecef);color:var(--pink,#f15d7d);border-radius:10px;padding:8px 12px;font-weight:700;margin:8px 0 0">${esc(o.note)}</p>`:`<p class="hint">Note : ${esc(o.note)}</p>`):''}</div>`;
+  <div class="row" style="justify-content:space-between;align-items:center;margin:8px 0 0"><div class="total" style="margin:0">Total : ${dh(o.total)}${+o.shipping>0?` <span style="font-size:12px;font-weight:400;color:var(--mute)">(dont livraison ${dh(o.shipping)})</span>`:''}</div>${isAdmin()?`<button class="btn ghost" style="color:var(--bad)" onclick="delOrder('${o.id}')">🗑 Supprimer</button>`:''}</div>${o.note?(o.note.includes('🎁 EMBALLAGE CADEAU')?`<p style="background:var(--pink-s,#fdecef);color:var(--pink,#f15d7d);border-radius:10px;padding:8px 12px;font-weight:700;margin:8px 0 0">${esc(o.note)}</p>`:`<p class="hint">Note : ${esc(o.note)}</p>`):''}</div>`;
  }).join('');
 }
 async function delOrder(id){
@@ -843,16 +858,18 @@ async function setOrderStatus(id,status){
  await checkPendingOrders(false);await refresh()
 }
 async function generalTab(){
- const{data}=await sb.from('site_settings').select('*').in('key',['shipping_message','shipping_threshold','stats','phone']);
+ const{data}=await sb.from('site_settings').select('*').in('key',['shipping_message','shipping_threshold','shipping_fee','stats','phone']);
  const phone=data?.find(r=>r.key==='phone')?.value||'0660704987';
  const stats=parseStats(data?.find(r=>r.key==='stats')?.value);
  const msg=data?.find(r=>r.key==='shipping_message')?.value||'';
  const th=data?.find(r=>r.key==='shipping_threshold')?.value||'';
+ const fee=data?.find(r=>r.key==='shipping_fee')?.value||'';
  return `<div class="card"><h2 style="margin-top:0">Numéro de téléphone</h2><p class="hint" style="margin:0 0 12px">Affiché sur le site (section « Nous trouver » et pied de page) et utilisé par le bouton WhatsApp.</p>
  <div class="row"><input id="sitephone" type="tel" value="${esc(phone)}" placeholder="06XXXXXXXX" style="max-width:260px"><button class="btn" onclick="savePhone()">Enregistrer</button></div></div>
  <div class="card"><h2 style="margin-top:0">Message de livraison</h2><p class="hint" style="margin:0 0 12px">Affiché sur le site avec une petite illustration, et sous forme de barre de progression dans le panier (ex. "Plus que 50 DH pour la livraison gratuite !").</p>
  <label for="shipmsg">Message</label><input id="shipmsg" value="${esc(msg)}" style="margin-bottom:12px" placeholder="Livraison gratuite dès 200 DH d'achat">
  <label for="shipth">Seuil de livraison gratuite (DH, facultatif — active la barre de progression dans le panier)</label><input id="shipth" type="number" min="0" step="any" value="${esc(th)}" style="margin-bottom:12px">
+ <label for="shipfee">Frais de livraison (DH) — ajoutés au total du panier, sauf si le seuil de livraison gratuite est atteint (laisser vide ou 0 = pas de frais)</label><input id="shipfee" type="number" min="0" step="any" value="${esc(fee)}" style="margin-bottom:12px;max-width:200px" placeholder="Ex : 30">
  <button class="btn" onclick="saveShippingMsg()">Enregistrer</button></div>
  <div class="card"><h2 style="margin-top:0">Optimiser les photos existantes</h2><p class="hint" style="margin:0 0 12px">Réduit les photos produits trop lourdes (max 1000 px) pour que le site se charge plus vite sur téléphone. Les photos restent aux mêmes adresses. À faire une seule fois.</p>
  <button class="btn" id="optbtn" onclick="optimizePhotos()">Optimiser maintenant</button><p class="hint" id="optlog" style="margin:10px 0 0"></p></div>
@@ -904,8 +921,8 @@ async function savePhone(){
  clearDrafts();toast('Numéro enregistré 🎉')
 }
 async function saveShippingMsg(){
- const value=$('#shipmsg').value.trim(),threshold=$('#shipth').value.trim();
- const{error}=await sb.from('site_settings').upsert([{key:'shipping_message',value},{key:'shipping_threshold',value:threshold}]);
+ const value=$('#shipmsg').value.trim(),threshold=$('#shipth').value.trim(),fee=$('#shipfee').value.trim();
+ const{error}=await sb.from('site_settings').upsert([{key:'shipping_message',value},{key:'shipping_threshold',value:threshold},{key:'shipping_fee',value:fee}]);
  if(error){toast(error.message);return}
  clearDrafts();toast('Message enregistré 🎉')
 }

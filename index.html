@@ -2,7 +2,6 @@
 <html lang="fr">
 <head>
 <meta charset="utf-8">
-<meta name="facebook-domain-verification" content="ghcf1jnr29ofi6hgja4vqhpeus9vx4" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Ola Bébé — Boutique</title>
 <link rel="icon" type="image/png" href="logo.png">
@@ -403,7 +402,7 @@ const LOW=5;
 const CAT_ICONS=['🧸','👶','🍼','🧴','👕','🎁','🛏️','🚼','🧦','📦'];
 const CAT_BG=['var(--pink-s)','var(--teal-s)','var(--yel)','var(--lav)'];
 const catIcon=name=>{let h=0;for(const c of (name||''))h=(h*31+c.charCodeAt(0))>>>0;return CAT_ICONS[h%CAT_ICONS.length]};
-let subs=[],products=[],promos=[],reviews=[],cats=[],depts=[],brandRows=[],cart={},activeCat=null,activeBrand=null,activeDept=null,shipThreshold=null,activeSub=null,activePromoProducts=null,activeQuery='';
+let subs=[],products=[],promos=[],reviews=[],cats=[],depts=[],brandRows=[],cart={},activeCat=null,activeBrand=null,activeDept=null,shipThreshold=null,shipFee=0,activeSub=null,activePromoProducts=null,activeQuery='';
 /* Numéro de téléphone (modifiable depuis l'admin : Site → Général) */
 const DEFAULT_PHONE='0660704987';
 function applyPhone(raw){
@@ -433,6 +432,7 @@ function applyData(d){
  applyPhone(ss?.find(r=>r.key==='phone')?.value);
  const shipMsg=ss?.find(r=>r.key==='shipping_message')?.value||'';
  shipThreshold=parseFloat(ss?.find(r=>r.key==='shipping_threshold')?.value)||null;
+ shipFee=parseFloat(ss?.find(r=>r.key==='shipping_fee')?.value)||0;
  renderRibbon();renderNew();renderPromo();renderCats();renderBrands();renderGrid();renderReviews();renderMenu();renderShipBanner(shipMsg);
  renderStats(parseStats(ss?.find(r=>r.key==='stats')?.value));
 }
@@ -449,7 +449,7 @@ async function boot(){
   rest('categories?select=*&order=sort,name'),
   rest('brands?select=*&order=name'),
   rest('departments?select=*&order=sort,name'),
-  rest('site_settings?select=*&key=in.(shipping_message,shipping_threshold,stats,phone)'),
+  rest('site_settings?select=*&key=in.(shipping_message,shipping_threshold,shipping_fee,stats,phone)'),
   rest('subcategories?select=*&order=name')
  ]);
  const full=rest(FULL_Q);let fullDone=false;full.then(()=>{fullDone=true});
@@ -643,7 +643,7 @@ function filterBar(n){
  const txt=activeQuery?`Résultats pour « <b>${esc(activeQuery)}</b> »`:(activeBrand?`Marque : <b>${esc(activeBrand)}</b>`:'');
  return txt?`<div class="fbar"><span>${txt} — ${n} produit${n>1?'s':''}</span><button onclick="clearFilters()">✕ Voir tous les produits</button></div>`:'';
 }
-let gridLimit=12,gridSig='';
+let gridLimit=12,gridSig='',gridIO=null;
 function moreProducts(){gridLimit+=12;renderGrid()}
 function renderGrid(){
  let list=combos();
@@ -654,7 +654,14 @@ function renderGrid(){
  if(activeSub)list=list.filter(x=>x.p.subcategory===activeSub);
  if(activeBrand)list=list.filter(x=>x.p.brand===activeBrand);
  {const sig=[activeQuery,activeBrand,activeCat,activeSub,activeDept,activePromoProducts&&activePromoProducts.join()].join('|');if(sig!==gridSig){gridSig=sig;gridLimit=12}}
- $('#grid').innerHTML=filterBar(new Set(list.map(x=>x.p.id)).size)+(list.length?`<div class="prods">${list.slice(0,gridLimit).map(cardHTML).join('')}</div>${list.length>gridLimit?`<div style="text-align:center;margin:18px 0"><button class="btn o" onclick="moreProducts()">Voir plus de produits (${list.length-gridLimit})</button></div>`:''}`:`<div class="panel empty">${activeQuery?'Aucun produit ne correspond à votre recherche.':'Aucun produit disponible pour le moment.'}</div>`);
+ $('#grid').innerHTML=filterBar(new Set(list.map(x=>x.p.id)).size)+(list.length?`<div class="prods">${list.slice(0,gridLimit).map(cardHTML).join('')}</div>${list.length>gridLimit?`<div id="gridmore" style="text-align:center;margin:18px 0;color:var(--mute);font-size:13px"><button class="btn o" id="gridmorebtn" onclick="moreProducts()">Voir plus de produits (${list.length-gridLimit})</button></div>`:''}`:`<div class="panel empty">${activeQuery?'Aucun produit ne correspond à votre recherche.':'Aucun produit disponible pour le moment.'}</div>`);
+ if(gridIO){gridIO.disconnect();gridIO=null}
+ const more=document.getElementById('gridmore');
+ if(more&&'IntersectionObserver' in window){
+  more.innerHTML='Chargement…';
+  gridIO=new IntersectionObserver(en=>{if(en[0].isIntersecting){gridIO.disconnect();gridIO=null;moreProducts()}},{rootMargin:'900px'});
+  gridIO.observe(more);
+ }
 }
 function renderNew(){
  const list=combos().filter(x=>x.p.is_new);
@@ -747,6 +754,7 @@ function addToCart(vid){cart[vid]=(cart[vid]||0)+1;{const c=combos().find(x=>x.v
 function updateFab(){const n=Object.values(cart).reduce((s,q)=>s+q,0);const b=$('#fabn');b.style.display=n?'flex':'none';b.textContent=n}
 function cartLines(){return Object.entries(cart).map(([vid,q])=>{const c=combos().find(x=>x.v.id===vid);return c?{...c,q}:null}).filter(Boolean)}
 function cartTotal(){return cartLines().reduce((s,l)=>s+l.q*(l.p.on_sale&&l.p.sale_price?l.p.sale_price:l.p.price),0)}
+function deliveryFee(){return shipFee>0&&!(shipThreshold>0&&cartTotal()>=shipThreshold)?shipFee:0}
 function openCart(){renderCart();$('#drawer').classList.add('open');$('#ov').classList.add('open')}
 function closeCart(){$('#drawer').classList.remove('open');$('#ov').classList.remove('open')}
 function changeQty(vid,d){cart[vid]=(cart[vid]||0)+d;if(cart[vid]<=0)delete cart[vid];updateFab();renderGrid();renderNew();renderPromo();if($('#drawer').classList.contains('open'))renderCart()}
@@ -771,7 +779,7 @@ function renderCart(){
  $('#drawer').innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"><h2 style="margin:0;font-size:18px">Votre panier</h2><button class="btn o" style="padding:6px 14px" onclick="closeCart()">✕</button></div>
  ${lines.length?shipProgressHTML():''}
  ${lines.length?lines.map(l=>`<div class="citem"><div><b>${esc(vtitle(l.p,l.v))}</b><br><span style="color:var(--mute)">${esc(l.v.variant)}${l.v.color&&l.v.color!=='Standard'?' · '+esc(l.v.color):''}</span></div><div style="display:flex;align-items:center;gap:6px"><button class="qtybtn" onclick="changeQty('${l.v.id}',-1)">−</button>${l.q}<button class="qtybtn" onclick="changeQty('${l.v.id}',1)">+</button></div></div>`).join(''):emptyCartHTML()}
- ${lines.length?`<div class="total" style="margin:16px 0 8px">Total : ${dh(cartTotal())}</div>
+ ${lines.length?`${shipFee>0?`<div style="margin:16px 0 0;font-size:13px;color:var(--mute);display:flex;justify-content:space-between"><span>Sous-total</span><span>${dh(cartTotal())}</span></div><div style="margin:4px 0 0;font-size:13px;display:flex;justify-content:space-between"><span style="color:var(--mute)">Livraison</span>${deliveryFee()?`<span>${dh(deliveryFee())}</span>`:`<b style="color:var(--teal)">Gratuite 🎉</b>`}</div>`:''}<div class="total" style="margin:${shipFee>0?'8px':'16px'} 0 8px">Total : ${dh(cartTotal()+deliveryFee())}</div>
  <label style="display:flex;gap:10px;align-items:center;background:var(--pink-s);color:var(--pink);border-radius:12px;padding:10px 14px;font-size:12.5px;font-weight:600;margin-bottom:${giftWrap?'8px':'14px'};cursor:pointer"><input type="checkbox" id="cgift" ${giftWrap?'checked':''} style="width:auto;min-height:auto;margin:0" onchange="toggleGift(this.checked)">🎁 Emballage cadeau (gratuit)</label>
  ${giftWrap?`<input id="cgiftmsg" placeholder="Petit mot pour la carte (facultatif)" value="${esc(giftMsg)}" oninput="giftMsg=this.value" style="margin-bottom:14px">`:''}
  <label for="cn">Nom</label><input id="cn">
@@ -787,9 +795,20 @@ async function submitOrder(){
  if(!phone){toast('Indiquez votre téléphone');return}
  if(!isValidPhone(phone)){toast('Numéro de téléphone invalide (ex. 06XXXXXXXX)');return}
  const items=cartLines().map(l=>({variant_id:l.v.id,qty:l.q,price:l.p.on_sale&&l.p.sale_price?l.p.sale_price:l.p.price}));
- let error=null;try{const r=await fetch(SB_URL+'/rest/v1/rpc/record_order',{method:'POST',headers:{...SB_H,'Content-Type':'application/json'},body:JSON.stringify({p_customer_name:name,p_phone:phone,p_address:$('#ca').value.trim()||null,p_note:[giftWrap?'🎁 EMBALLAGE CADEAU'+(giftMsg.trim()?' — mot : « '+giftMsg.trim()+' »':''):'',$('#cnote').value.trim()].filter(Boolean).join(' | ')||null,p_items:items})});if(!r.ok)error=await r.json()}catch(e){error={message:e.message}}
+ const fee=deliveryFee(),total=cartTotal()+fee;
+ const baseNote=[giftWrap?'🎁 EMBALLAGE CADEAU'+(giftMsg.trim()?' — mot : « '+giftMsg.trim()+' »':''):'',$('#cnote').value.trim()].filter(Boolean);
+ const post=async body=>{const r=await fetch(SB_URL+'/rest/v1/rpc/record_order',{method:'POST',headers:{...SB_H,'Content-Type':'application/json'},body:JSON.stringify(body)});return r.ok?null:await r.json()};
+ const base={p_customer_name:name,p_phone:phone,p_address:$('#ca').value.trim()||null,p_items:items};
+ let error=null;
+ try{
+  error=await post({...base,p_note:baseNote.join(' | ')||null,p_shipping:fee});
+  // Base de données pas encore mise à jour (SQL 17) : on enregistre quand même, la livraison est notée dans la commande
+  if(error&&(error.code==='PGRST202'||/p_shipping|Could not find the function/i.test(error.message||''))){
+   error=await post({...base,p_note:[...baseNote,fee?'🚚 Livraison : '+fee+' DH (total à payer : '+total+' DH)':''].filter(Boolean).join(' | ')||null});
+  }
+ }catch(e){error={message:e.message}}
  if(error){toast(error.message||'Erreur');return}
- trk('track','Purchase',{value:cartTotal(),currency:'MAD',num_items:cartLines().reduce((n,l)=>n+l.q,0),content_ids:cartLines().map(l=>l.p.id),content_type:'product'});
+ trk('track','Purchase',{value:total,currency:'MAD',num_items:cartLines().reduce((n,l)=>n+l.q,0),content_ids:cartLines().map(l=>l.p.id),content_type:'product'});
  const wasGift=giftWrap;giftWrap=false;giftMsg='';cart={};closeCart();updateFab();renderGrid();renderNew();renderPromo();toast(wasGift?'Commande envoyée 🎉 Emballage cadeau gratuit noté ! Nous vous contactons bientôt.':'Commande envoyée 🎉 Nous vous contactons bientôt.');
 }
 boot();

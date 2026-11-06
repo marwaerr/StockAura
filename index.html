@@ -695,9 +695,39 @@ function cardHTML(x){
  ${x.v.quantity<=0?'':inCart?`<div class="stepper"><button onclick="changeQty('${x.v.id}',-1)">−</button><b>${inCart}</b><button onclick="changeQty('${x.v.id}',1)">+</button></div>`:`<button class="add" onclick="addToCart('${x.v.id}')">Ajouter au panier</button>`}
  </div>`;
 }
-function openProduct(pid,vid){
- const p=products.find(x=>x.id===pid);if(!p)return;
- const v=p.variants.find(x=>x.id===vid)||p.variants[0];window._pmVid=v.id;trk('track','ViewContent',{content_ids:[p.id],content_name:p.name,content_type:'product',value:p.on_sale&&p.sale_price?p.sale_price:p.price,currency:'MAD'});
+/* Liens directs pour les publicités et le partage de produits */
+function productLink(pid,vid){
+ const url=new URL(window.location.href);
+ url.searchParams.set('product',pid);
+ if(vid)url.searchParams.set('variant',vid);else url.searchParams.delete('variant');
+ url.hash='';
+ return url.toString();
+}
+function syncProductLink(pid,vid){
+ const url=new URL(window.location.href);
+ if(url.searchParams.get('product')===String(pid)&&url.searchParams.get('variant')===String(vid))return;
+ url.searchParams.set('product',pid);
+ url.searchParams.set('variant',vid);
+ url.hash='';
+ history.pushState({olaProduct:true},'',url);
+}
+async function copyProductLink(pid,vid){
+ const url=productLink(pid,vid);
+ try{await navigator.clipboard.writeText(url);toast('Lien du produit copié !')}
+ catch(e){window.prompt('Copiez le lien du produit :',url)}
+}
+function openLinkedProduct(){
+ const q=new URLSearchParams(window.location.search),pid=q.get('product'),vid=q.get('variant');
+ if(!pid){if($('#pmodal').classList.contains('open'))closeProduct(false);return}
+ if(products.some(p=>String(p.id)===pid))openProduct(pid,vid,false);
+ else toast('Ce produit est introuvable ou indisponible.');
+}
+window.addEventListener('popstate',openLinkedProduct);
+function openProduct(pid,vid,updateUrl=true){
+ const p=products.find(x=>String(x.id)===String(pid));if(!p||!p.variants?.length)return;
+ const v=p.variants.find(x=>String(x.id)===String(vid))||p.variants[0];
+ if(updateUrl)syncProductLink(p.id,v.id);
+ window._pmVid=v.id;trk('track','ViewContent',{content_ids:[p.id],content_name:p.name,content_type:'product',value:p.on_sale&&p.sale_price?p.sale_price:p.price,currency:'MAD'});
  const imgs=[...new Set([...vphotos(p,v),p.photo_url,...(p.product_images||[]).map(i=>i.image_url)].filter(Boolean))];
  const m=$('#pmodal'),first=!m.classList.contains('open');
  let active=!first&&window._pmState&&window._pmState.pid===pid?Math.min(window._pmState.active,Math.max(0,imgs.length-1)):0;
@@ -726,6 +756,7 @@ function openProduct(pid,vid){
     <span class="pm-stock ${st[1]}">● ${st[0]}</span>
     ${p.variants.length>1?[['variant','Taille'],['color','Couleur']].map(([dim,lbl])=>{const vals=[...new Set(p.variants.map(x=>x[dim]))];return vals.length>1?`<div class="pm-opt"><span>${lbl} :</span><div class="pm-chips">${vals.map(val=>`<button class="${v[dim]===val?'on':''}${p.variants.filter(x=>x[dim]===val).every(x=>x.quantity<=0)?' off':''}" onclick="pickVar('${pid}','${dim}',this.dataset.v)" data-v="${esc(val)}">${esc(val)}</button>`).join('')}</div></div>`:''}).join(''):(vlabel(v)?`<p class="pm-var">${esc(vlabel(v))}</p>`:'')}
     <div class="pm-buy">${v.quantity<=0?'<button class="pm-add" disabled>Indisponible pour le moment</button>':inCart?`<div class="pm-qty"><button aria-label="Retirer un" onclick="changeQty('${v.id}',-1);openProduct('${pid}','${v.id}')">−</button><b>${inCart}</b><button aria-label="Ajouter un" onclick="changeQty('${v.id}',1);openProduct('${pid}','${v.id}')">+</button></div><button class="pm-add" onclick="closeProduct();openCart()">Voir mon panier →</button>`:`<button class="pm-add" onclick="addToCart('${v.id}');openProduct('${pid}','${v.id}')">🛒 Ajouter au panier</button>`}</div>
+    <button class="btn o" style="margin:0;width:100%" onclick="copyProductLink('${p.id}','${v.id}')">🔗 Copier le lien du produit</button>
     <a class="pm-wa" data-wa data-msg="Bonjour, j'ai une question sur : ${esc(p.name)}" href="#" target="_blank" rel="noopener">💬 Une question ? Écrivez-nous sur WhatsApp</a>
     <ul class="pm-perks"><li>🚚 Livraison rapide partout au Maroc</li><li>💳 Paiement cash ou carte à la livraison</li><li>🎁 Emballage cadeau gratuit : à cocher dans votre panier</li></ul>
     ${p.description?`<div class="pm-desc"><h4>Description</h4>${esc(p.description)}</div>`:''}
@@ -737,7 +768,16 @@ function openProduct(pid,vid){
  draw();
  if(first){m.classList.add('open');document.body.style.overflow='hidden'}
 }
-function closeProduct(){$('#pmodal').classList.remove('open');document.body.style.overflow='';window._pmState=null}
+function closeProduct(updateUrl=true){
+ $('#pmodal').classList.remove('open');document.body.style.overflow='';window._pmState=null;
+ if(updateUrl){
+  const url=new URL(window.location.href);
+  if(url.searchParams.has('product')){
+   url.searchParams.delete('product');url.searchParams.delete('variant');
+   history.replaceState(null,'',url);
+  }
+ }
+}
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('#pmodal').classList.contains('open'))closeProduct()});
 function renderReviews(){
  const stars=n=>'★'.repeat(n)+'☆'.repeat(5-n);
@@ -811,7 +851,7 @@ async function submitOrder(){
  trk('track','Purchase',{value:total,currency:'MAD',num_items:cartLines().reduce((n,l)=>n+l.q,0),content_ids:cartLines().map(l=>l.p.id),content_type:'product'});
  const wasGift=giftWrap;giftWrap=false;giftMsg='';cart={};closeCart();updateFab();renderGrid();renderNew();renderPromo();toast(wasGift?'Commande envoyée 🎉 Emballage cadeau gratuit noté ! Nous vous contactons bientôt.':'Commande envoyée 🎉 Nous vous contactons bientôt.');
 }
-boot();
+boot().then(openLinkedProduct);
 </script>
 <script>
 /* Protection anti copier-coller / enregistrement d'images (dissuasive : aucun site web ne peut l'empêcher à 100 %) */
